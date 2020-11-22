@@ -18,6 +18,7 @@ library(xts)
 library(TTR)
 library(ggplot2)
 
+setwd("C:/Users/Havar/Documents/GIT-new")
 #RMarkdown
 
 install.packages("rmarkdown")
@@ -206,7 +207,7 @@ for(i in 1:length(OBX)){
 
 
 
-
+#this is a comment
 
 
 
