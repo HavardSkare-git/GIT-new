@@ -124,8 +124,7 @@ for (i in 1:ncol(pricedata.OBX)) {
                       fill = list(NA, NULL, NA), 
                       align = "right")
 }
-hei 
-<- c(1,2,3)
+
 ####
 
 pricedata.OBX <- as.data.frame(pricedata.OBX)
