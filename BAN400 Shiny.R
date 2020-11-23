@@ -22,7 +22,7 @@ ui <- fluidPage(
               value = 50,
               min = 1, 
               max = 200),
-  actionButton(inputId = "calc", label = "Click here to meet milfs in your neighbourhood"),
+  actionButton(inputId = "calc", label = "Click here"),
   plotOutput("hist")
 )
 
