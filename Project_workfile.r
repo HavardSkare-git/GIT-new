@@ -41,12 +41,9 @@ OBX <-
   select("Tickersymbol") %>%
   map_df(~gsub("OSE: ", "",.)) %>% 
   map_df(~paste0(.,".OL")) %>% 
+  subset(., .$Tickersymbol == "AKER.OL") %>% 
   unlist(.) %>% 
   as.vector(.)
-  
-
-
-
 
 # OBX stocks are listed as TICKERNAME.OL on Yahoo Finance. 
 # Removing "OSE: "
@@ -58,8 +55,7 @@ OBX <-
 # Using the tidyquant package to extract the latest pricedata 
 # on the OBX stocks from Yahoo Finance
 
-
-pricedata.OBX <- map_df(OBX, function(x) {
+pricedata.OBX <- map_dfc(OBX, function(x) {
   outdata <- getSymbols(x, 
                         from = Sys.Date() %m+% months(-12), 
                         to = Sys.Date(), 
@@ -67,143 +63,91 @@ pricedata.OBX <- map_df(OBX, function(x) {
                         auto.assign = FALSE)
   
   outdata <- data.frame(dates = index(outdata), coredata(outdata)) %>% 
-              select("dates", contains("Close")) 
-
-              
+              select("dates", contains("Close")) %>% 
+                na.omit(.)
   
   return(outdata)
 }) 
 
-pricedata.OBX <- 
-    as.data.frame(pricedata.OBX) %>% 
-      select("dates", contains("Close"))
-
-
-pricedata.OBX <- xts(pricedata.OBX[,-1], 
-                     order.by=as.Date(pricedata.OBX[,1], 
-                                      "%m/%d/%Y"))
+#pricedata.OBX <- na.omit(pricedata.OBX) %>% 
+#  select("dates...1", contains("Close"))
 
 # ------
 ####################################################################
 # RSI 
-rsi.OBX <- matrix(0, 
-                  nrow = nrow(pricedata.OBX), 
-                  ncol = length(OBX)+1, 
-                  index(pricedata.OBX))
 
-rsi.OBX <- as.data.frame(rsi.OBX)
 
-rsi.OBX[,1] <- pricedata.OBXd$dates
+#rsi.obx <- map_df(pricedata.OBX[,2:ncol(pricedata.OBX)],
+#             function(x) RSI(x)) %>% 
+#               mutate(date=pricedata.OBX$dates, .before = 1)
 
-for (i in 1:ncol(pricedata.OBX)) {
-  
-  rsi.OBX[,i+1] <- 
-    RSI(pricedata.OBX[,i])
-}
+pricedata.OBX$RSI <- RSI(pricedata.OBX[2])
+
 
 # Moving average
 
-ma.OBX <- matrix(0, 
-                 nrow = nrow(pricedata.OBX), 
-                 ncol = length(OBX)+1, 
-                 index(pricedata.OBX))
+#ma.OBX <- map_df(pricedata.OBX[,2:ncol(pricedata.OBX)],
+#                 function(x) rollmean(x, 100, fill = list(NA,NULL,NA),
+#                   align = "right")) %>% 
+#                     mutate(date=pricedata.OBX$dates...1, .before = 1)
 
-ma.OBX <- as.data.frame(ma.OBX)
 
-ma.OBX[,1] <- pricedata.OBXd$dates
+pricedata.OBX$MA <- rollmean(pricedata.OBX$AKER.OL.Close, 100,
+                             fill = list(NA, NULL, NA),
+                             align = "right")
 
-for (i in 1:ncol(pricedata.OBX)) {
-  ma.OBX[,i+1] <-
-    rollmean(pricedata.OBX[,i], 
-             100, 
-             fill = list(NA, NULL, NA), 
-             align = "right")
-}
 
-####
-
-pricedata.OBX <- as.data.frame(pricedata.OBX)
-
-#
-
-rsi.list <- list()
-price.ma.list <- list()
-
-for(i in 1:length(OBX)){
-  if(pricedata.OBX[nrow(pricedata.OBX),i] > ma.OBX[nrow(ma.OBX), i+1] & 
-     rsi.OBX[nrow(rsi.OBX), i+1] < 10){
-    a <- eval(substitute(ggplot(rsi.OBX)+
-                           geom_line(data = rsi.OBX,
-                                     aes(x = ma.OBX$V1,
-                                         y = rsi.OBX[,i+1]))+
-                           geom_hline(yintercept = c(30,70), 
-                                      col = "red", 
-                                      linetype = "dotted")+
-                           ggtitle(paste(OBX[i], "er en kjøpskandidat"))+
-                           xlab("Dato")+
-                           ylab("Pris")+
-                           theme_bw(),
-                         list(i = i)))
-    print(i)
+  
+if(pricedata.OBX[nrow(pricedata.OBX),2] > pricedata.OBX[nrow(pricedata.OBX),4] & pricedata.OBX[nrow(pricedata.OBX),3]< 10){
+    a <- ggplot(pricedata.OBX) + 
+      geom_line(aes(x = dates,
+                    y = RSI)) +
+      geom_hline(yintercept = c(30,70), 
+                 col = "red", 
+                 linetype = "dotted")+
+      ggtitle(paste(OBX, "er en kjopskandidat"))+
+      xlab("Dato")+
+      ylab("Pris")+
+      theme_bw()
     print(a)
-    rsi.list[[i]] <- a
-    b <- eval(substitute(ggplot(pricedata.OBX)+
-                           geom_line(data = pricedata.OBX,
-                                     aes(x = ma.OBX$V1,
-                                         y = pricedata.OBX[,i]))+
-                           geom_line(data = ma.OBX, 
-                                     aes(x = ma.OBX$V1, 
-                                         y = ma.OBX[,i+1]),
-                                     col = "green")+
-                           ggtitle(paste(OBX[i], "er en kjøpskandidat"))+
-                           xlab("Dato")+
-                           ylab("Pris")+
-                           theme_bw(),
-                         list(i = i)))
-    print(i)
+    
+    b <- ggplot(pricedata.OBX)+
+      geom_line(aes(x = AKER.OL.Close,
+                    y = dates))+
+      geom_line(aes(y = MA),
+    col = "green")+
+    ggtitle(paste(OBX, "er en kjopskandidat"))+
+    xlab("Dato")+
+    ylab("Pris")+
+    theme_bw()
     print(b)
-    price.ma.list[[i]] <- b
-  } else if(pricedata.OBX[nrow(pricedata.OBX),i] > ma.OBX[nrow(ma.OBX), i+1] & 
-            rsi.OBX[nrow(rsi.OBX), i+1] > 30) {
-    c <- eval(substitute(ggplot(rsi.OBX)+
-                           geom_line(data = rsi.OBX,
-                                     aes(x = ma.OBX$V1,
-                                         y = rsi.OBX[,i+1]))+
-                           geom_hline(yintercept = c(30,70), 
-                                      col = "red", 
-                                      linetype = "dotted")+
-                           ggtitle(paste(OBX[i], "er en salgskandidat"))+
-                           xlab("Dato")+
-                           ylab("Pris")+
-                           theme_bw(),
-                         list(i = i)))
-    print(i)
+  } else if (pricedata.OBX[nrow(pricedata.OBX),2] > pricedata.OBX[nrow(pricedata.OBX),4] & pricedata.OBX[nrow(pricedata.OBX),3] > 70){
+    c <- ggplot(pricedata.OBX) + 
+      geom_line(aes(x = dates,
+                    y = RSI)) +
+      geom_hline(yintercept = c(30,70), 
+                 col = "red", 
+                 linetype = "dotted")+
+      ggtitle(paste(OBX, "er en salgskandidat"))+
+      xlab("Dato")+
+      ylab("Pris")+
+      theme_bw()
     print(c)
-    rsi.list[[i]] <- c
-    d <- eval(substitute(ggplot(pricedata.OBX)+
-                           geom_line(data = pricedata.OBX,
-                                     aes(x = ma.OBX$V1,
-                                         y = pricedata.OBX[,i]))+
-                           geom_line(data = ma.OBX, 
-                                     aes(x = ma.OBX$V1, 
-                                         y = ma.OBX[,i+1]),
-                                     col = "green")+
-                           ggtitle(paste(OBX[i], "er en salgskandidat"))+
-                           xlab("Dato")+
-                           ylab("Pris")+
-                           theme_bw(),
-                         list(i = i)))
-    print(i)
+    
+    d <- ggplot(pricedata.OBX)+
+      geom_line(aes(x = dates,
+                    y = AKER.OL.Close))+
+      geom_line(aes(x = dates,
+                    y = MA),
+                col = "green")+
+      ggtitle(paste(OBX, "er en salgskandidat"))+
+      xlab("Dato")+
+      ylab("Pris")+
+      theme_bw()
     print(d)
-    price.ma.list[[i]] <- d
-  }}
-
-
-
-
-
-
-
+}
+                              
+  
 
 
 
