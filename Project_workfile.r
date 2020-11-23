@@ -31,59 +31,53 @@ library(rmarkdown)
 
 # List of companies in OBX
 
-url <- read_html("https://no.wikipedia.org/wiki/OBX-indeksen")
 
-OBX <- url %>% 
+
+OBX <- 
+  read_html("https://no.wikipedia.org/wiki/OBX-indeksen") %>% 
   html_nodes(xpath = '//*[@id="mw-content-text"]/div[1]/table[1]') %>% 
-  html_table()
+  html_table() %>%
+  as.data.frame(.) %>% 
+  select("Tickersymbol") %>%
+  map_df(~gsub("OSE: ", "",.)) %>% 
+  map_df(~paste0(.,".OL")) %>% 
+  unlist(.) %>% 
+  as.vector(.)
+  
 
-# OSEBX ----
-#urlOSEBX <- read_html("https://no.wikipedia.org/wiki/OSEBX-indeksen")
 
-#OSEBX <- url %>% 
-#  html_nodes(xpath = '//*[@id="mw-content-text"]/div[1]/table') %>% 
-#  html_table()
 
-#####  
-OBX <- as.data.frame(OBX) %>% 
-  select("Tickersymbol")
 
 # OBX stocks are listed as TICKERNAME.OL on Yahoo Finance. 
 # Removing "OSE: "
 
-OBX <- gsub("OSE: ", "", OBX$Tickersymbol)
-
-OBX <- as.data.frame(OBX) 
 
 # Adding ".OL"
-OBX$OL <- ".OL"
 
-OBX <- paste0(OBX$OBX, OBX$OL)
 
 # Using the tidyquant package to extract the latest pricedata 
 # on the OBX stocks from Yahoo Finance
 
-today <- Sys.Date()
 
-from.date <- today %m+% months(-12)
-
-pricedata.OBX <- lapply(OBX, function(x) {
+pricedata.OBX <- map_df(OBX, function(x) {
   outdata <- getSymbols(x, 
-                    from = from.date, 
-                    to = today, 
-                    warnings = FALSE,
-                    auto.assign = FALSE)
-  outdata <- data.frame(dates = index(outdata), coredata(outdata))
+                        from = Sys.Date() %m+% months(-12), 
+                        to = Sys.Date(), 
+                        warnings = FALSE,
+                        auto.assign = FALSE)
+  
+  outdata <- data.frame(dates = index(outdata), coredata(outdata)) %>% 
+              select("dates", contains("Close")) 
+
+              
+  
   return(outdata)
-})
+}) 
 
-# Putting all data into same data frame and filtering
+pricedata.OBX <- 
+    as.data.frame(pricedata.OBX) %>% 
+      select("dates", contains("Close"))
 
-pricedata.OBXd <- na.omit(as.data.frame(pricedata.OBX))
-
-pricedata.OBX <- pricedata.OBXd %>% 
-  select("dates", 
-         contains("Close"))
 
 pricedata.OBX <- xts(pricedata.OBX[,-1], 
                      order.by=as.Date(pricedata.OBX[,1], 
@@ -121,9 +115,9 @@ ma.OBX[,1] <- pricedata.OBXd$dates
 for (i in 1:ncol(pricedata.OBX)) {
   ma.OBX[,i+1] <-
     rollmean(pricedata.OBX[,i], 
-                      100, 
-                      fill = list(NA, NULL, NA), 
-                      align = "right")
+             100, 
+             fill = list(NA, NULL, NA), 
+             align = "right")
 }
 
 ####
@@ -160,7 +154,7 @@ for(i in 1:length(OBX)){
                            geom_line(data = ma.OBX, 
                                      aes(x = ma.OBX$V1, 
                                          y = ma.OBX[,i+1]),
-                                         col = "green")+
+                                     col = "green")+
                            ggtitle(paste(OBX[i], "er en kjøpskandidat"))+
                            xlab("Dato")+
                            ylab("Pris")+
