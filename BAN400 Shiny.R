@@ -21,6 +21,19 @@ OBX <-
   map_df(~paste0(.,".OL")) 
 
 
+price <- function(ticker){
+  outdata <- getSymbols(ticker, 
+                        from = Sys.Date() %m+% months(-12), 
+                        to = Sys.Date(), 
+                        warnings = FALSE,
+                        auto.assign = FALSE) %>% 
+    na.omit()
+  
+  outdata <- data.frame(dates = index(outdata), coredata(outdata)) %>% 
+    select("dates", contains("Close"))
+  
+  return(outdata)
+}
 
 # ------------Building Shiny App 
 
@@ -45,8 +58,14 @@ ui <- fluidPage(
 )
 
 server <- function(input, output){
-
-  output$hist <- renderText(print(input$stockname))
+  
+  data <- reactive({
+    price(input$stockname)
+  })
+  
+  output$hist <- renderText({
+    print(data())
+  })
 }
 
 shinyApp(ui = ui, server = server)
