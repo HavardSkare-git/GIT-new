@@ -8,6 +8,8 @@ install.packages("httr")
 install.packages("magrittr")
 install.packages("xml")
 install.packages("ggplot2")
+install.packages("docstring")
+install.packages("roxygen2")
 library(tidyquant)
 library(tidyverse)
 library(rvest)
@@ -17,6 +19,8 @@ library(magrittr)
 library(xts)
 library(TTR)
 library(ggplot2)
+library(roxygen2)
+library(docstring)
 
 setwd("C:/Users/Havar/Documents/GIT-new")
 #RMarkdown
@@ -38,9 +42,16 @@ OBX <-
   html_nodes(xpath = '//*[@id="mw-content-text"]/div[1]/table[1]') %>% 
   html_table() %>%
   as.data.frame(.) %>% 
-  select("Tickersymbol") %>%
-  map_df(~gsub("OSE: ", "",.)) %>% 
-  map_df(~paste0(.,".OL")) %>% 
+  map_df(~gsub("OSE: ", "",.)) 
+
+
+OBX <- paste0(OBX$Tickersymbol,".OL")
+
+
+
+  select("Tickersymbol") 
+
+
   subset(., .$Tickersymbol == "AKER.OL") %>% 
   unlist(.) %>% 
   as.vector(.)
@@ -51,11 +62,11 @@ OBX <-
 
 # Adding ".OL"
 
-
 # Using the tidyquant package to extract the latest pricedata 
 # on the OBX stocks from Yahoo Finance
 
 pricedata.OBX <- map_dfc(OBX, function(x) {
+  
   outdata <- getSymbols(x, 
                         from = Sys.Date() %m+% months(-12), 
                         to = Sys.Date(), 
@@ -76,12 +87,11 @@ pricedata.OBX <- map_dfc(OBX, function(x) {
 ####################################################################
 # RSI 
 
-
 #rsi.obx <- map_df(pricedata.OBX[,2:ncol(pricedata.OBX)],
 #             function(x) RSI(x)) %>% 
 #               mutate(date=pricedata.OBX$dates, .before = 1)
 
-pricedata.OBX$RSI <- RSI(pricedata.OBX[2])
+pricedata.OBX$RSI <- RSI(pricedata.OBX[,2])
 
 
 # Moving average
@@ -92,7 +102,7 @@ pricedata.OBX$RSI <- RSI(pricedata.OBX[2])
 #                     mutate(date=pricedata.OBX$dates...1, .before = 1)
 
 
-pricedata.OBX$MA <- rollmean(pricedata.OBX$AKER.OL.Close, 100,
+pricedata.OBX$MA <- rollmean(pricedata.OBX[,2], 100,
                              fill = list(NA, NULL, NA),
                              align = "right")
 
@@ -100,11 +110,11 @@ pricedata.OBX$MA <- rollmean(pricedata.OBX$AKER.OL.Close, 100,
   
 if(pricedata.OBX[nrow(pricedata.OBX),2] > pricedata.OBX[nrow(pricedata.OBX),4] & pricedata.OBX[nrow(pricedata.OBX),3]< 10){
     a <- ggplot(pricedata.OBX) + 
-      geom_line(aes(x = dates,
-                    y = RSI)) +
+      geom_line(aes(x = dates, y = RSI)) +
       geom_hline(yintercept = c(30,70), 
                  col = "red", 
                  linetype = "dotted")+
+      
       ggtitle(paste(OBX, "er en kjopskandidat"))+
       xlab("Dato")+
       ylab("Pris")+
@@ -116,11 +126,13 @@ if(pricedata.OBX[nrow(pricedata.OBX),2] > pricedata.OBX[nrow(pricedata.OBX),4] &
                     y = dates))+
       geom_line(aes(y = MA),
     col = "green")+
+      
     ggtitle(paste(OBX, "er en kjopskandidat"))+
     xlab("Dato")+
     ylab("Pris")+
     theme_bw()
     print(b)
+    
   } else if (pricedata.OBX[nrow(pricedata.OBX),2] > pricedata.OBX[nrow(pricedata.OBX),4] & pricedata.OBX[nrow(pricedata.OBX),3] > 70){
     c <- ggplot(pricedata.OBX) + 
       geom_line(aes(x = dates,
@@ -128,6 +140,7 @@ if(pricedata.OBX[nrow(pricedata.OBX),2] > pricedata.OBX[nrow(pricedata.OBX),4] &
       geom_hline(yintercept = c(30,70), 
                  col = "red", 
                  linetype = "dotted")+
+      
       ggtitle(paste(OBX, "er en salgskandidat"))+
       xlab("Dato")+
       ylab("Pris")+
@@ -140,6 +153,7 @@ if(pricedata.OBX[nrow(pricedata.OBX),2] > pricedata.OBX[nrow(pricedata.OBX),4] &
       geom_line(aes(x = dates,
                     y = MA),
                 col = "green")+
+      
       ggtitle(paste(OBX, "er en salgskandidat"))+
       xlab("Dato")+
       ylab("Pris")+

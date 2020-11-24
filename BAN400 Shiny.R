@@ -1,14 +1,19 @@
 rm(list = ls())
 
 #### Libraries
+library(tidyquant)
+
 require(tidyverse)
 require(shiny)
 require(rvest)
 require(XML)
 require(httr)
-require(margrittr)
+require(magrittr)
 require(ggplot2)
 require(xtable)
+library(mar)
+
+
 
 OBX <- 
   read_html("https://no.wikipedia.org/wiki/OBX-indeksen") %>% 
@@ -21,7 +26,7 @@ OBX <-
   map_df(~paste0(.,".OL")) 
 
 
-price <- function(ticker){
+price <- function(ticker, p){
   outdata <- getSymbols(ticker, 
                         from = Sys.Date() %m+% months(-12), 
                         to = Sys.Date(), 
@@ -30,10 +35,17 @@ price <- function(ticker){
     na.omit()
   
   outdata <- data.frame(dates = index(outdata), coredata(outdata)) %>% 
-    select("dates", contains("Close"))
+    select("dates", contains("Close")) 
+
+  outdata$rsi <- RSI(outdata[,2], n = p)
   
+
   return(outdata)
 }
+
+
+
+
 
 # ------------Building Shiny App 
 
@@ -54,13 +66,14 @@ ui <- fluidPage(
               value = 50,
               min = 1, 
               max = 200),
-  plotOutput("hist")
+  plotOutput("hist"),
+  plotOutput("rsiplot")
 )
 
 server <- function(input, output){
   
   data <- reactive({
-    price(input$stockname)
+    price(input$stockname,input$RSI)
   })
   
   output$hist <- renderPlot({
@@ -71,6 +84,20 @@ server <- function(input, output){
         y = data[,2]))+
       xlab("DATE")+
       ylab("CLOSING PRICE")+
+      ggtitle(input$stockname)+
+      theme_bw()
+  })
+  
+  
+  
+  output$rsiplot <- renderPlot({
+    data = data()
+    ggplot(data)+
+      geom_line(aes(
+        x = data[,1],
+        y = data[,3]))+
+      xlab("DATE")+
+      ylab("RSI")+
       ggtitle(input$stockname)+
       theme_bw()
   })
