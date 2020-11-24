@@ -30,7 +30,7 @@ OBX <-
 
 price <- function(ticker, n_rsi, n_ma){
   outdata <- suppressWarnings(getSymbols(ticker, 
-                        from = Sys.Date() %m+% months(-12), 
+                        from = Sys.Date() %m+% months(-24), 
                         to = Sys.Date(), 
                         warnings = NULL,
                         auto.assign = FALSE))
@@ -50,7 +50,6 @@ price <- function(ticker, n_rsi, n_ma){
   return(outdata)
 }
 
-test <- price("AKER.OL", 7, 50)
 # ------------Building Shiny App 
 
 ui <- navbarPage("BAN400 Project",
@@ -65,7 +64,6 @@ ui <- navbarPage("BAN400 Project",
                                                     selected = NULL,
                                                     multiple = FALSE,
                                                     selectize = TRUE),
-                                        br(),
                                         sliderInput(inputId = "RSI", 
                                                     label = "Relative Strength Index (RSI)",
                                                     value = 14,
@@ -75,16 +73,22 @@ ui <- navbarPage("BAN400 Project",
                                                     label = "Moving Average (MA)",
                                                     value = 50,
                                                     min = 1, 
-                                                    max = 200)
-                                      ),
+                                                    max = 200),
+                                        dateRangeInput(inputId = "dates",
+                                                       label = "Choose time period",
+                                                       start = Sys.Date() %m+% months(-12),
+                                                       end = Sys.Date(),
+                                                       min = Sys.Date() %m+% months(-15),
+                                                       max = Sys.Date())
+                                        ),
                                       mainPanel(
                                         plotOutput("priceplot"),
                                         br(),
                                         plotOutput("rsiplot")
+                                        )
                                       )
                                     )
-                            
-                          )),
+                          ),
                  tabPanel("TRADING OPPORTUNITIES"),
                  tabPanel("ABOUT"))
 
@@ -106,6 +110,7 @@ server <- function(input, output){
         color = "green")+
       xlab("DATE")+
       ylab("CLOSING PRICE")+
+      scale_x_date(limits = c(input$dates[1], input$dates[2]))+
       ggtitle(paste0("PRICE CHART: ",input$stockname))+
       theme_economist()
   })
@@ -123,6 +128,7 @@ server <- function(input, output){
       ylab("RSI")+
       ggtitle(paste0("RSI CHART: ", input$stockname))+
       ylim(c(15,85))+
+      scale_x_date(limits = c(input$dates[1], input$dates[2]))+
       theme_economist()
   })
 }
