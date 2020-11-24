@@ -15,6 +15,8 @@ require(ggplot2)
 require(ggthemes)
 install.packages("shinythemes")
 install.packages("ggthemes")
+install.packages("emojifont")
+require(emojifont)
 
 
 OBX <- 
@@ -87,9 +89,10 @@ ui <- navbarPage("BAN400 Project",
                                         plotOutput("rsiplot")
                                         )
                                       )
-                                    )
+                                    ),
+                          icon = icon("search")
                           ),
-                 tabPanel("TRADING OPPORTUNITIES"),
+                 tabPanel("TRADING OPPORTUNITIES", icon = icons("info-circle")),
                  tabPanel("ABOUT"))
 
 server <- function(input, output){
@@ -100,7 +103,7 @@ server <- function(input, output){
   
   output$priceplot <- renderPlot({
     data = data()
-    ggplot(data)+
+    suppressWarnings(ggplot(data)+
       geom_line(aes(
         x = data[,1],
         y = data[,2]))+
@@ -112,12 +115,12 @@ server <- function(input, output){
       ylab("CLOSING PRICE")+
       scale_x_date(limits = c(input$dates[1], input$dates[2]))+
       ggtitle(paste0("PRICE CHART: ",input$stockname))+
-      theme_economist()
+      theme_economist())
   })
   
   output$rsiplot <- renderPlot({
     data = data()
-    ggplot(data)+
+    suppressWarnings(ggplot(data)+
       geom_line(aes(
         x = data[,1],
         y = data[,3]))+
@@ -127,9 +130,9 @@ server <- function(input, output){
       xlab("DATE")+
       ylab("RSI")+
       ggtitle(paste0("RSI CHART: ", input$stockname))+
-      ylim(c(15,85))+
+      ylim(c(5,95))+
       scale_x_date(limits = c(input$dates[1], input$dates[2]))+
-      theme_economist()
+      theme_economist())
   })
 }
 
