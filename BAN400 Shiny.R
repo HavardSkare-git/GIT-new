@@ -40,7 +40,7 @@ price <- function(ticker){
 ui <- fluidPage(
   selectInput(inputId = "stockname",
               label = "Search stocks",
-              choices = c("",OBX$Ticker),
+              choices = OBX$Ticker,
               selected = NULL,
               multiple = FALSE,
               selectize = TRUE),
@@ -63,10 +63,19 @@ server <- function(input, output){
     price(input$stockname)
   })
   
-  output$hist <- renderText({
-    print(data())
+  output$hist <- renderPlot({
+    data = data()
+    ggplot(data)+
+      geom_line(aes(
+        x = data[,1],
+        y = data[,2]))+
+      xlab("DATE")+
+      ylab("CLOSING PRICE")+
+      ggtitle(input$stockname)+
+      theme_bw()
   })
 }
 
 shinyApp(ui = ui, server = server)
+
 
