@@ -12,12 +12,15 @@ require(httr)
 require(magrittr)
 require(xtable)
 require(ggplot2)
+install.packages("ggthemes")
 require(ggthemes)
 install.packages("shinythemes")
 install.packages("ggthemes")
 install.packages("emojifont")
 require(emojifont)
-
+library(shinythemes)
+install.packages("ICON")
+library(ICON)
 
 OBX <- 
   read_html("https://no.wikipedia.org/wiki/OBX-indeksen") %>% 
@@ -66,16 +69,16 @@ ui <- navbarPage("BAN400 Project",
                                                     selected = NULL,
                                                     multiple = FALSE,
                                                     selectize = TRUE),
-                                        sliderInput(inputId = "RSI", 
-                                                    label = "Relative Strength Index (RSI)",
-                                                    value = 14,
-                                                    min = 1, 
-                                                    max = 30),
                                         sliderInput(inputId = "MA", 
                                                     label = "Moving Average (MA)",
                                                     value = 50,
                                                     min = 1, 
                                                     max = 200),
+                                        sliderInput(inputId = "RSI", 
+                                                    label = "Relative Strength Index (RSI)",
+                                                    value = 14,
+                                                    min = 1, 
+                                                    max = 30),
                                         dateRangeInput(inputId = "dates",
                                                        label = "Choose time period",
                                                        start = Sys.Date() %m+% months(-12),
@@ -92,7 +95,7 @@ ui <- navbarPage("BAN400 Project",
                                     ),
                           icon = icon("search")
                           ),
-                 tabPanel("TRADING OPPORTUNITIES", icon = icons("info-circle")),
+                 tabPanel("TRADING OPPORTUNITIES", icon = icon("info-circle")),
                  tabPanel("ABOUT"))
 
 server <- function(input, output){
