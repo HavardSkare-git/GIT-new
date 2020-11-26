@@ -105,7 +105,7 @@ pricedata.OBX$RSI <- RSI(pricedata.OBX[,2])
 pricedata.OBX$MA <- rollmean(pricedata.OBX[,2], 100,
                              fill = list(NA, NULL, NA),
                              align = "right")
-
+#check
 
   
 if(pricedata.OBX[nrow(pricedata.OBX),2] > pricedata.OBX[nrow(pricedata.OBX),4] & pricedata.OBX[nrow(pricedata.OBX),3]< 10){
