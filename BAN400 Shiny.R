@@ -1,4 +1,4 @@
-rm(list = ls())
+rm()
 install.packages("docstring")
 install.packages("ggthemes")
 install.packages("shinythemes")
@@ -22,8 +22,10 @@ require(emojifont)
 library(shinythemes)
 library(ICON)
 library(docstring)
+library(purrr)
 
 
+#-------------------------------TICKER----------------------------------------------
 OBX <- 
   read_html("https://no.wikipedia.org/wiki/OBX-indeksen") %>% 
   html_nodes(xpath = '//*[@id="mw-content-text"]/div[1]/table[1]') %>% 
@@ -31,7 +33,7 @@ OBX <-
   as.data.frame() %>% 
   map_df(~gsub("OSE: ", "",.)) 
 
-OBX$Tickersymbol <- paste0(OBX$Tickersymbol,".OL")
+OBX <- as.character(paste0(OBX$Tickersymbol,".OL"))
 
 get.ticker <- function(name){
   #' Ticker converter
@@ -42,6 +44,70 @@ get.ticker <- function(name){
   ticker <- as.character(OBX[OBX$Selskap %in% name ,] %>% 
               .[,3])
 }
+
+#------------------------------- TRADING OPORTUNITIES ------------------------------------
+OBX <- tq_index("SP500")
+
+# Remove stocks with missing values and unobtainable stocks
+OBX <- OBX[!OBX$symbol %in% c("BRK.B","BF.B","CARR","OTIS","VIAC","LUMN","VNT","AVGO"),] 
+
+
+OBX <- as.data.frame(OBX) %>% 
+  select("symbol") %>% 
+  unlist(.) %>% 
+  as.character(.)
+
+
+today <- Sys.Date()
+
+from.date <- today %m+% months(-12)
+
+pricedata.OBX <- pblapply(OBX, function(x) {
+  outdata_all <- getSymbols(x, 
+                        from = from.date, 
+                        to = today, 
+                        warnings = FALSE,
+                        auto.assign = F)
+  outdata_all <- data.frame(dates = index(outdata_all), coredata(outdata_all)) %>% 
+    select("dates", contains("Close")) %>% 
+    na.omit(.) 
+
+  return(outdata_all)
+})
+ 
+#--------------------------------- DATA TRANFORMATION ------------------------------------------
+
+dates <- as.data.frame(pricedata.OBX[[1]]$dates) # Create date df
+
+pricedata.OBX %>% 
+  map(.,function(x) select(x,contains("Close"))) %>% # Keep only closing price
+    flatten(.) %>%                             # Flatten list
+      sapply(.,                                # Extract the list values
+         '[', seq(max(sapply(., length)
+             )
+               )
+                 ) %>% 
+                  as.data.frame(.) %>%          # Transform to df
+                    mutate(dates = dates$`pricedata.OBX[[1]]$dates`, .before = 1) -> SP500 # Add date column
+
+colnames(SP500)[colSums(is.na(SP500)) > 0]
+
+
+#-------------------------------------- MA AND RSI-------------------------------------
+
+rsi.obx <- map_df(SP500[,2:ncol(SP500)],
+                               function(x) RSI(x)) %>% 
+                                 mutate(date=SP500$dates, .before = 1)
+                  
+ma.OBX <- map_df(SP500[,2:ncol(SP500)],
+                                  function(x) rollmean(x, 100, fill = list(NA,NULL,NA),
+                                    align = "right")) %>% 
+                                      mutate(date=SP500$dates, .before = 1)
+                 
+
+#-------------------------------PRICEDATA FUNCTION -----------------------------------------------
+
+
 
 price <- function(name, n_rsi, n_ma){
   #price <- function(name, n_rsi, n_ma){
@@ -72,11 +138,11 @@ price <- function(name, n_rsi, n_ma){
                          fill = list(NA, NULL, NA),
                          align = "right")
   
-  outdata$signal <-  ifelse(outdata$ma > outdata[,2] & outdata$rsi < 30,
+  outdata$signal <-  ifelse(outdata$ma > outdata[,2] & outdata$rsi < 30, # ifelse for salgssignal
                             
                             c("buy"),
                             
-                            ifelse(outdata$ma < outdata[,2] & outdata$rsi > 70,
+                            ifelse(outdata$ma < outdata[,2] & outdata$rsi > 70, # må bruke [,2] for å hente pris for alle aksjer
                                    
                                    c("sell"),
                                    
@@ -88,7 +154,7 @@ price <- function(name, n_rsi, n_ma){
 
 
 
-# ------------Building Shiny App 
+# ------------Building Shiny App -------------------------------------------------------------
 
 ui <- navbarPage("BAN400 Project",
                  tabPanel("COMPANY SEARCH",
@@ -123,7 +189,7 @@ ui <- navbarPage("BAN400 Project",
                                       ),
                                       
                                       mainPanel(
-                                        textOutput("signal"),
+                                        textOutput("signal"), # plassering av salgssignal i shiny
                                         br(),
                                         plotOutput("priceplot"),
                                         br(),
@@ -184,9 +250,9 @@ server <-  function(input, output){
       theme_economist())
   })
   
-  output$signal <- renderText({
+  output$signal <- renderText({     # Legger til rendertext med salgssignal
     data = data()
-    paste("We recommend that you should",data[nrow(data),5])
+    paste("We recommend that you should",data[nrow(data),5]) # må bruke "data" da denne er koblet opp mot "outdata"
   })
 }
 
