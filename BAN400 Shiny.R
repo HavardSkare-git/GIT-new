@@ -1,8 +1,13 @@
 rm(list = ls())
+install.packages("docstring")
+install.packages("ggthemes")
+install.packages("shinythemes")
+install.packages("ggthemes")
+install.packages("emojifont")
+install.packages("ICON")
 
 #### Libraries
 library(tidyquant)
-
 require(tidyverse)
 require(shiny)
 require(shinythemes)
@@ -12,38 +17,53 @@ require(httr)
 require(magrittr)
 require(xtable)
 require(ggplot2)
-install.packages("ggthemes")
 require(ggthemes)
-install.packages("shinythemes")
-install.packages("ggthemes")
-install.packages("emojifont")
 require(emojifont)
 library(shinythemes)
-install.packages("ICON")
 library(ICON)
+library(docstring)
+
 
 OBX <- 
   read_html("https://no.wikipedia.org/wiki/OBX-indeksen") %>% 
   html_nodes(xpath = '//*[@id="mw-content-text"]/div[1]/table[1]') %>% 
   html_table() %>% 
   as.data.frame() %>% 
-  select("Tickersymbol") %>% 
-  set_colnames(c("Ticker")) %>% 
-  map_df(~gsub("OSE: ", "",.)) %>% 
-  map_df(~paste0(.,".OL")) 
+  map_df(~gsub("OSE: ", "",.)) 
 
+OBX$Tickersymbol <- paste0(OBX$Tickersymbol,".OL")
 
-price <- function(ticker, n_rsi, n_ma){
-  outdata <- suppressWarnings(getSymbols(ticker, 
-                        from = Sys.Date() %m+% months(-24), 
-                        to = Sys.Date(), 
-                        warnings = NULL,
-                        auto.assign = FALSE))
+get.ticker <- function(name){
+  #' Ticker converter
+  #' 
+  #' @description Changing company name to ticker
+  #' 
+  #' @param name the company name
+  ticker <- as.character(OBX[OBX$Selskap %in% name ,] %>% 
+              .[,3])
+}
+
+price <- function(name, n_rsi, n_ma){
+  #price <- function(name, n_rsi, n_ma){
+  #' RSI and MA calculation
+  #' 
+  #' @description This function collects stockprices using "getSymbols",
+  #' transforms it into a dataframe and calculated RSI and moving average.
+  #' 
+  #' @param name the company name
+  #' @param n_rsi number of periods for RSI
+  #' @param n_ma number of periods for MA
+  
+  outdata <- suppressWarnings(getSymbols(get.ticker(name), 
+                                         from = Sys.Date() %m+% months(-24), 
+                                         to = Sys.Date(), 
+                                         warnings = NULL,
+                                         auto.assign = FALSE))
   
   outdata <- data.frame(dates = index(outdata), coredata(outdata)) %>% 
     select("dates", contains("Close")) %>% 
     na.omit()
-
+  
   outdata$rsi <- RSI(outdata[,2], 
                      n = n_rsi)
   
@@ -52,8 +72,21 @@ price <- function(ticker, n_rsi, n_ma){
                          fill = list(NA, NULL, NA),
                          align = "right")
   
+  outdata$signal <-  ifelse(outdata$ma > outdata[,2] & outdata$rsi < 30,
+                            
+                            c("buy"),
+                            
+                            ifelse(outdata$ma < outdata[,2] & outdata$rsi > 70,
+                                   
+                                   c("sell"),
+                                   
+                                   c("hold")))
   return(outdata)
-}
+  
+}                             
+
+
+
 
 # ------------Building Shiny App 
 
@@ -65,7 +98,7 @@ ui <- navbarPage("BAN400 Project",
                                       sidebarPanel(
                                         selectInput(inputId = "stockname",
                                                     label = "Search stocks",
-                                                    choices = OBX$Ticker,
+                                                    choices = OBX$Selskap,
                                                     selected = NULL,
                                                     multiple = FALSE,
                                                     selectize = TRUE),
@@ -84,21 +117,34 @@ ui <- navbarPage("BAN400 Project",
                                                        start = Sys.Date() %m+% months(-12),
                                                        end = Sys.Date(),
                                                        min = Sys.Date() %m+% months(-15),
-                                                       max = Sys.Date())
-                                        ),
+                                                       max = Sys.Date()),
+                                        
+                                        
+                                      ),
+                                      
                                       mainPanel(
+                                        textOutput("signal"),
+                                        br(),
                                         plotOutput("priceplot"),
                                         br(),
                                         plotOutput("rsiplot")
                                         )
+                                    
                                       )
                                     ),
+                                    
                           icon = icon("search")
                           ),
                  tabPanel("TRADING OPPORTUNITIES", icon = icon("info-circle")),
                  tabPanel("ABOUT"))
 
-server <- function(input, output){
+server <-  function(input, output){
+  
+  
+  #output$signaltext <- renderUI({
+   # str1 <- print(output$signal)
+    #HTML(str1)
+  #})
   
   data <- reactive({
     suppressWarnings(price(input$stockname,input$RSI, input$MA))
@@ -137,7 +183,11 @@ server <- function(input, output){
       scale_x_date(limits = c(input$dates[1], input$dates[2]))+
       theme_economist())
   })
+  
+  output$signal <- renderText({
+    data = data()
+    paste("We recommend that you should",data[nrow(data),5])
+  })
 }
 
 shinyApp(ui = ui, server = server)
-
