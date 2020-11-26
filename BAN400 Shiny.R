@@ -103,11 +103,34 @@ ma.OBX <- map_df(SP500[,2:ncol(SP500)],
                                   function(x) rollmean(x, 100, fill = list(NA,NULL,NA),
                                     align = "right")) %>% 
                                       mutate(date=SP500$dates, .before = 1)
-                 
 
-#-------------------------------PRICEDATA FUNCTION -----------------------------------------------
+rsi_now <- rsi.obx[nrow(rsi.obx),2:ncol(rsi.obx)] %>%     # Latest rsi data
+              t(.) %>%
+                as.data.frame(.) 
+                  
+ma_now <- ma.OBX[nrow(ma.OBX),2:ncol(ma.OBX)] %>%         # Latest ma data
+              t(.) %>%
+                as.data.frame(.) 
 
+latest <- SP500[nrow(SP500),2:ncol(SP500)] %>%            # Comparing latest price, ma and rsi
+                t(.) %>%
+                  as.data.frame(.) %>% 
+                    mutate(ma=ma_now) %>% 
+                      mutate(rsi=rsi_now) %>% 
+                        `colnames<-`(c("Price", "MA", "RSI"))
 
+ latest$signal <-  ifelse(latest$MA > latest$Price & latest$RSI < 30, # ifelse for salessignal
+                          
+                          c("buy"),
+                          
+                          ifelse(latest$MA < latest$Price & latest$RSI > 70, 
+                                 
+                                 c("sell"),
+                                 
+                                 c("hold")))      
+ 
+ 
+ #-------------------------------PRICEDATA FUNCTION -----------------------------------------------
 
 price <- function(name, n_rsi, n_ma){
   #price <- function(name, n_rsi, n_ma){
@@ -120,7 +143,7 @@ price <- function(name, n_rsi, n_ma){
   #' @param n_rsi number of periods for RSI
   #' @param n_ma number of periods for MA
   
-  outdata <- suppressWarnings(getSymbols(get.ticker(name), 
+  outdata <- suppressWarnings(getSymbols(name, 
                                          from = Sys.Date() %m+% months(-24), 
                                          to = Sys.Date(), 
                                          warnings = NULL,
@@ -164,7 +187,7 @@ ui <- navbarPage("BAN400 Project",
                                       sidebarPanel(
                                         selectInput(inputId = "stockname",
                                                     label = "Search stocks",
-                                                    choices = OBX$Selskap,
+                                                    choices = OBX,
                                                     selected = NULL,
                                                     multiple = FALSE,
                                                     selectize = TRUE),
@@ -252,7 +275,7 @@ server <-  function(input, output){
   
   output$signal <- renderText({     # Legger til rendertext med salgssignal
     data = data()
-    paste("We recommend that you should",data[nrow(data),5]) # må bruke "data" da denne er koblet opp mot "outdata"
+    paste("We recommend that you ",data[nrow(data),5]) # må bruke "data" da denne er koblet opp mot "outdata"
   })
 }
 
