@@ -122,9 +122,15 @@ all_price <- function(sector, n_rsi, n_ma){
 # Keep only sell/buy recommendations
   latest <- latest[!latest$signal %in% c("hold"),] 
   
-  selected_sector <- as.character(sector) 
+  if (length(sector) > 0){
+    selected_sector <- as.character(sector) 
+    latest <- subset(latest, latest$Sector == selected_sector)
+  } else{
+    sectors <- as.character(latest$Sector)
+    latest <- subset(latest, latest$Sector == sectors )
+  }
   
-  latest <- subset(latest, latest$Sector == selected_sector)
+  
   
   return(latest)
 }
@@ -243,7 +249,7 @@ ui <- navbarPage("BAN400 Project",
                                                     label = "Search sector",
                                                     choices = stocks_df$sector,
                                                     selected = NULL,
-                                                    multiple = FALSE,
+                                                    multiple = TRUE,
                                                     selectize = TRUE),
                                         sliderInput(inputId = "MA_all", 
                                                     label = "Moving Average (MA)",
