@@ -49,8 +49,7 @@ pricedata <- pblapply(stocks, function(x) {
                         warnings = FALSE,
                         auto.assign = F)
   outdata_all <- data.frame(dates = index(outdata_all), coredata(outdata_all)) %>% 
-    select("dates", contains("Close")) %>% 
-    na.omit(.) 
+    select("dates", contains("Close")) 
 
   return(outdata_all)
 })
