@@ -96,9 +96,8 @@ ma.sp <- map_df(SP500[,2:ncol(SP500)],
 latest <- SP500[nrow(SP500),2:ncol(SP500)] %>%            # Comparing latest price, ma and rsi
                 t(.) %>%                                  # Transpose
                   as.data.frame(.) %>% 
-                    tibble::rownames_to_column('Stocks') %>%  # Rownames to column
-                      map_df(~gsub(".Close","",.)) %>%        # Remove ".Close"
-                       mutate(ma=ma.sp) %>%                  # Add MA values
+                      mutate(stocks_df$company, .before = 1) %>% 
+                        mutate(ma=ma.sp) %>%                  # Add MA values
                         mutate(rsi=rsi.sp) %>%               # Add RSI values
                           `colnames<-`(c("Stocks","Price", "MA", "RSI" )) # Set column names
                            
