@@ -92,7 +92,6 @@ pricedata.OBX %>%
 
 colnames(SP500)[colSums(is.na(SP500)) > 0]
 
-
 #-------------------------------------- MA AND RSI-------------------------------------
 
 rsi.obx <- map_df(SP500[,2:ncol(SP500)],
@@ -110,24 +109,32 @@ rsi_now <- rsi.obx[nrow(rsi.obx),2:ncol(rsi.obx)] %>%     # Latest rsi data
                   
 ma_now <- ma.OBX[nrow(ma.OBX),2:ncol(ma.OBX)] %>%         # Latest ma data
               t(.) %>%
-                as.data.frame(.) 
+                as.data.frame(.)
 
+ma_now$stocks <- row.names(ma_now) %>% 
+                    gsub(".Close","",.)
+  #Finding the stock names
+rm(latest)
 latest <- SP500[nrow(SP500),2:ncol(SP500)] %>%            # Comparing latest price, ma and rsi
                 t(.) %>%
                   as.data.frame(.) %>% 
-                    mutate(ma=ma_now) %>% 
-                      mutate(rsi=rsi_now) %>% 
-                        `colnames<-`(c("Price", "MA", "RSI"))
+                    mutate(ma_now$V1) %>% 
+                      mutate(ma_now$stocks, .before = 1) %>% 
+                        mutate(rsi_now) %>% 
+                          `colnames<-`(c("Stocks","Price", "MA", "RSI" )) 
+                           
 
  latest$signal <-  ifelse(latest$MA > latest$Price & latest$RSI < 30, # ifelse for salessignal
                           
                           c("buy"),
                           
-                          ifelse(latest$MA < latest$Price & latest$RSI > 70, 
+                            ifelse(latest$MA < latest$Price & latest$RSI > 70, 
                                  
-                                 c("sell"),
+                               c("sell"),
                                  
-                                 c("hold")))      
+                                 c("hold"))) 
+ 
+latest <- latest[!latest$signal %in% c("hold"),]
  
  
  #-------------------------------PRICEDATA FUNCTION -----------------------------------------------
@@ -224,7 +231,14 @@ ui <- navbarPage("BAN400 Project",
                                     
                           icon = icon("search")
                           ),
-                 tabPanel("TRADING OPPORTUNITIES", icon = icon("info-circle")),
+                 tabPanel("TRADING OPPORTUNITIES",
+                          fluidPage(theme = shinytheme("superhero"),
+                                    titlePanel("TRADING OPPORTUNITIES"),
+                                        mainPanel(
+                                          tableOutput("signal_all")
+                                        )
+                          ),
+                          icon = icon("info-circle")),
                  tabPanel("ABOUT"))
 
 server <-  function(input, output){
@@ -277,6 +291,19 @@ server <-  function(input, output){
     data = data()
     paste("We recommend that you ",data[nrow(data),5]) # må bruke "data" da denne er koblet opp mot "outdata"
   })
+  
+  
+  all_data <- reactive({
+    suppressWarnings(latest)
+  })
+  # Adding all the signals
+  output$signal_all <- renderTable({
+    data = all_data()
+    data[,c(1,5)]
+  })
+  
+  
+  
 }
 
 shinyApp(ui = ui, server = server)
