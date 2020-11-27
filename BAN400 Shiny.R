@@ -25,34 +25,14 @@ library(docstring)
 library(purrr)
 
 
-#-------------------------------TICKER----------------------------------------------
-OBX <- 
-  read_html("https://no.wikipedia.org/wiki/OBX-indeksen") %>% 
-  html_nodes(xpath = '//*[@id="mw-content-text"]/div[1]/table[1]') %>% 
-  html_table() %>% 
-  as.data.frame() %>% 
-  map_df(~gsub("OSE: ", "",.)) 
-
-OBX <- as.character(paste0(OBX$Tickersymbol,".OL"))
-
-get.ticker <- function(name){
-  #' Ticker converter
-  #' 
-  #' @description Changing company name to ticker
-  #' 
-  #' @param name the company name
-  ticker <- as.character(OBX[OBX$Selskap %in% name ,] %>% 
-              .[,3])
-}
-
 #------------------------------- TRADING OPORTUNITIES ------------------------------------
-OBX <- tq_index("SP500")
+stocks <- tq_index("SP500")
 
 # Remove stocks with missing values and unobtainable stocks
-OBX <- OBX[!OBX$symbol %in% c("BRK.B","BF.B","CARR","OTIS","VIAC","LUMN","VNT","AVGO"),] 
+stocks <- stocks[!stocks$symbol %in% c("BRK.B","BF.B","CARR","OTIS","VIAC","LUMN","VNT","AVGO"),] 
 
 
-OBX <- as.data.frame(OBX) %>% 
+stocks <- as.data.frame(stocks) %>% 
   select("symbol") %>% 
   unlist(.) %>% 
   as.character(.)
@@ -62,7 +42,7 @@ today <- Sys.Date()
 
 from.date <- today %m+% months(-12)
 
-pricedata.OBX <- pblapply(OBX, function(x) {
+pricedata <- pblapply(stocks, function(x) {
   outdata_all <- getSymbols(x, 
                         from = from.date, 
                         to = today, 
@@ -77,9 +57,9 @@ pricedata.OBX <- pblapply(OBX, function(x) {
  
 #--------------------------------- DATA TRANFORMATION ------------------------------------------
 
-dates <- as.data.frame(pricedata.OBX[[1]]$dates) # Create date df
+dates <- as.data.frame(pricedata[[1]]$dates) # Create date df
 
-pricedata.OBX %>% 
+pricedata %>% 
   map(.,function(x) select(x,contains("Close"))) %>% # Keep only closing price
     flatten(.) %>%                             # Flatten list
       sapply(.,                                # Extract the list values
@@ -88,43 +68,39 @@ pricedata.OBX %>%
                )
                  ) %>% 
                   as.data.frame(.) %>%          # Transform to df
-                    mutate(dates = dates$`pricedata.OBX[[1]]$dates`, .before = 1) -> SP500 # Add date column
+                    mutate(dates = dates$`pricedata[[1]]$dates`, .before = 1) -> SP500 # Add date column
 
 colnames(SP500)[colSums(is.na(SP500)) > 0]
 
-#-------------------------------------- MA AND RSI-------------------------------------
-
-rsi.obx <- map_df(SP500[,2:ncol(SP500)],
+#-------------------------------------- MA, RSI and SIGNAL-------------------------------------
+# Calculate RSI
+rsi.sp <- map_df(SP500[,2:ncol(SP500)],
                                function(x) RSI(x)) %>% 
-                                 mutate(date=SP500$dates, .before = 1)
-                  
-ma.OBX <- map_df(SP500[,2:ncol(SP500)],
+                                 mutate(date=SP500$dates, .before = 1) %>% 
+                                  .[nrow(.),2:ncol(.)] %>%     
+                                    t(.) %>%
+                                      as.data.frame(.) 
+# Calculate MA                  
+ma.sp <- map_df(SP500[,2:ncol(SP500)],
                                   function(x) rollmean(x, 100, fill = list(NA,NULL,NA),
                                     align = "right")) %>% 
-                                      mutate(date=SP500$dates, .before = 1)
+                                      mutate(date=SP500$dates, .before = 1) %>% 
+                                        .[nrow(.),2:ncol(.)] %>%         
+                                          t(.) %>%
+                                            as.data.frame(.)
 
-rsi_now <- rsi.obx[nrow(rsi.obx),2:ncol(rsi.obx)] %>%     # Latest rsi data
-              t(.) %>%
-                as.data.frame(.) 
-                  
-ma_now <- ma.OBX[nrow(ma.OBX),2:ncol(ma.OBX)] %>%         # Latest ma data
-              t(.) %>%
-                as.data.frame(.)
-
-ma_now$stocks <- row.names(ma_now) %>% 
-                    gsub(".Close","",.)
-  #Finding the stock names
-rm(latest)
+# Price, MA and RSI
 latest <- SP500[nrow(SP500),2:ncol(SP500)] %>%            # Comparing latest price, ma and rsi
-                t(.) %>%
+                t(.) %>%                                  # Transpose
                   as.data.frame(.) %>% 
-                    mutate(ma_now$V1) %>% 
-                      mutate(ma_now$stocks, .before = 1) %>% 
-                        mutate(rsi_now) %>% 
-                          `colnames<-`(c("Stocks","Price", "MA", "RSI" )) 
+                    tibble::rownames_to_column('Stocks') %>%  # Rownames to column
+                      map_df(~gsub(".Close","",.)) %>%        # Remove ".Close"
+                       mutate(ma=ma.sp) %>%                  # Add MA values
+                        mutate(rsi=rsi.sp) %>%               # Add RSI values
+                          `colnames<-`(c("Stocks","Price", "MA", "RSI" )) # Set column names
                            
-
- latest$signal <-  ifelse(latest$MA > latest$Price & latest$RSI < 30, # ifelse for salessignal
+# Sales signal
+latest$signal <-  ifelse(latest$MA > latest$Price & latest$RSI < 30, # ifelse for signal
                           
                           c("buy"),
                           
@@ -133,7 +109,8 @@ latest <- SP500[nrow(SP500),2:ncol(SP500)] %>%            # Comparing latest pri
                                c("sell"),
                                  
                                  c("hold"))) 
- 
+
+# Keep only sell/buy recommendations
 latest <- latest[!latest$signal %in% c("hold"),]
  
  
@@ -194,7 +171,7 @@ ui <- navbarPage("BAN400 Project",
                                       sidebarPanel(
                                         selectInput(inputId = "stockname",
                                                     label = "Search stocks",
-                                                    choices = OBX,
+                                                    choices = stocks,
                                                     selected = NULL,
                                                     multiple = FALSE,
                                                     selectize = TRUE),
@@ -235,7 +212,7 @@ ui <- navbarPage("BAN400 Project",
                           fluidPage(theme = shinytheme("superhero"),
                                     titlePanel("TRADING OPPORTUNITIES"),
                                         mainPanel(
-                                          tableOutput("signal_all")
+                                          dataTableOutput("signal_all")
                                         )
                           ),
                           icon = icon("info-circle")),
@@ -297,7 +274,7 @@ server <-  function(input, output){
     suppressWarnings(latest)
   })
   # Adding all the signals
-  output$signal_all <- renderTable({
+  output$signal_all <- renderDataTable({
     data = all_data()
     data[,c(1,5)]
   })
