@@ -77,15 +77,18 @@ colnames(SP500)[colSums(is.na(SP500)) > 0]
 
 #------------------------------- MA, RSI and SIGNAL-------------------------------------
 # Calculate RSI
-rsi.sp <- map_df(SP500[,2:ncol(SP500)],
-                               function(x) RSI(x)) %>% 
+
+all_price <- function(sector, n_rsi, n_ma){
+
+  rsi.sp <- map_df(SP500[,2:ncol(SP500)],
+                               function(x) RSI(x, n = n_rsi)) %>% 
                                  mutate(date=SP500$dates, .before = 1) %>% 
                                   .[nrow(.),2:ncol(.)] %>%     
                                     t(.) %>%
                                       as.data.frame(.) 
 # Calculate MA                  
-ma.sp <- map_df(SP500[,2:ncol(SP500)],
-                                  function(x) rollmean(x, 100, fill = list(NA,NULL,NA),
+  ma.sp <- map_df(SP500[,2:ncol(SP500)],
+                                  function(x) rollmean(x, k = n_ma, fill = list(NA,NULL,NA),
                                     align = "right")) %>% 
                                       mutate(date=SP500$dates, .before = 1) %>% 
                                         .[nrow(.),2:ncol(.)] %>%         
@@ -93,28 +96,38 @@ ma.sp <- map_df(SP500[,2:ncol(SP500)],
                                             as.data.frame(.)
 
 # Price, MA and RSI
-latest <- SP500[nrow(SP500),2:ncol(SP500)] %>%            # Comparing latest price, ma and rsi
-                t(.) %>%                                  # Transpose
-                  as.data.frame(.) %>% 
-                      mutate(stocks_df$company, .before = 1) %>% 
-                        mutate(ma=ma.sp) %>%                  # Add MA values
-                        mutate(rsi=rsi.sp) %>%               # Add RSI values
-                          `colnames<-`(c("Stocks","Price", "MA", "RSI" )) # Set column names
+  latest <- SP500[nrow(SP500),2:ncol(SP500)] %>%            # Comparing latest price, ma and rsi
+                  t(.) %>%                                  # Transpose
+                    as.data.frame(.) %>% 
+                      mutate(stocks_df$sector, .before = 1) %>% 
+                        mutate(stocks_df$company, .before = 1) %>%
+                          mutate(ma=ma.sp) %>%                  # Add MA values
+                            mutate(rsi=rsi.sp) %>%               # Add RSI values
+                            `colnames<-`(c("Stocks","Sector", "Price", "MA","RSI"))
+
+
+# Set column names
                            
 # Sales signal
-latest$signal <-  ifelse(latest$MA > latest$Price & latest$RSI < 30, # ifelse for signal
-                          
-                          c("buy"),
-                          
-                            ifelse(latest$MA < latest$Price & latest$RSI > 70, 
-                                 
-                               c("sell"),
-                                 
-                                 c("hold"))) 
+  latest$signal <-  ifelse(latest$MA > latest$Price & latest$RSI < 30, # ifelse for signal
+                            
+                            c("buy"),
+                            
+                              ifelse(latest$MA < latest$Price & latest$RSI > 70, 
+                                   
+                                 c("sell"),
+                                   
+                                   c("hold"))) 
 
 # Keep only sell/buy recommendations
-latest <- latest[!latest$signal %in% c("hold"),]
- 
+  latest <- latest[!latest$signal %in% c("hold"),] 
+  
+  selected_sector <- as.character(sector) 
+  
+  latest <- subset(latest, latest$Sector == selected_sector)
+  
+  return(latest)
+}
  
 #------------------------------------- GET TICKER -----------------------
 
@@ -224,10 +237,29 @@ ui <- navbarPage("BAN400 Project",
                  tabPanel("TRADING OPPORTUNITIES",
                           fluidPage(theme = shinytheme("superhero"),
                                     titlePanel("TRADING OPPORTUNITIES"),
+                                      sidebarLayout(
+                                        sidebarPanel(
+                                        selectInput(inputId = "sector",
+                                                    label = "Search sector",
+                                                    choices = stocks_df$sector,
+                                                    selected = NULL,
+                                                    multiple = FALSE,
+                                                    selectize = TRUE),
+                                        sliderInput(inputId = "MA_all", 
+                                                    label = "Moving Average (MA)",
+                                                    value = 50,
+                                                    min = 1, 
+                                                    max = 200),
+                                        sliderInput(inputId = "RSI_all", 
+                                                    label = "Relative Strength Index (RSI)",
+                                                    value = 14,
+                                                    min = 1, 
+                                                    max = 30),
+                                        ),
                                         mainPanel(
-                                          dataTableOutput("signal_all")
+                                          dataTableOutput("tradingOportunity")
                                         )
-                          ),
+                          )),
                           icon = icon("info-circle")),
                  tabPanel("ABOUT"))
 
@@ -237,7 +269,7 @@ server <-  function(input, output){
   #output$signaltext <- renderUI({
    # str1 <- print(output$signal)
     #HTML(str1)
-  #})
+  #}) 
   
   data <- reactive({
     suppressWarnings(price(input$stockname,input$RSI, input$MA))
@@ -284,15 +316,13 @@ server <-  function(input, output){
   
   
   all_data <- reactive({
-    suppressWarnings(latest)
+    suppressWarnings(all_price(input$sector, input$RSI_all, input$MA_all))
   })
   # Adding all the signals
-  output$signal_all <- renderDataTable({
+  output$tradingOportunity <- renderDataTable({
     data = all_data()
-    data[,c(1,5)]
+    data[,1:6]
   })
-  
-  
   
 }
 
