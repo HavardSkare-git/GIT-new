@@ -26,18 +26,21 @@ library(docstring)
 library(purrr)
 
 
-#------------------------------- TRADING OPORTUNITIES ------------------------------------
-stocks <- tq_index("SP500")
+
+#------------------------------- TICKERS ---------------------------
+
+stocks_df <- tq_index("SP500")
 
 # Remove stocks with missing values and unobtainable stocks
-stocks <- stocks[!stocks$symbol %in% c("BRK.B","BF.B","CARR","OTIS","VIAC","LUMN","VNT","AVGO"),] 
+stocks_df <- stocks_df[!stocks_df$symbol %in% c("BRK.B","BF.B","CARR","OTIS","VIAC","LUMN","VNT","AVGO"),] 
 
-
-stocks <- as.data.frame(stocks) %>% 
+# Create tickers for trading opportunities
+stocks <- as.data.frame(stocks_df) %>% 
   select("symbol") %>% 
   unlist(.) %>% 
   as.character(.)
 
+#------------------------------- TRADING OPORTUNITIES ------------------------------------
 
 today <- Sys.Date()
 
@@ -114,7 +117,20 @@ latest$signal <-  ifelse(latest$MA > latest$Price & latest$RSI < 30, # ifelse fo
 latest <- latest[!latest$signal %in% c("hold"),]
  
  
+#------------------------------------- GET TICKER -----------------------
+
+get.ticker <- function(name){
+  #' Ticker converter
+  #' 
+  #' @description Changing company name to ticker
+  #' 
+  #' @param name the company name
+  ticker <- as.character(stocks_df[stocks_df$company %in% name,] %>% 
+                         .[,1])
+}
+  
 #------------------------------- PRICEDATA FUNCTION -----------------------------------------------
+  
 
 price <- function(name, n_rsi, n_ma){
   #price <- function(name, n_rsi, n_ma){
@@ -127,7 +143,7 @@ price <- function(name, n_rsi, n_ma){
   #' @param n_rsi number of periods for RSI
   #' @param n_ma number of periods for MA
   
-  outdata <- suppressWarnings(getSymbols(name, 
+  outdata <- suppressWarnings(getSymbols(get.ticker(name), 
                                          from = Sys.Date() %m+% months(-24), 
                                          to = Sys.Date(), 
                                          warnings = NULL,
@@ -159,8 +175,6 @@ price <- function(name, n_rsi, n_ma){
 }                             
 
 
-
-
 # ------------------------------ Building Shiny App -------------------------------------------------------------
 
 ui <- navbarPage("BAN400 Project",
@@ -171,7 +185,7 @@ ui <- navbarPage("BAN400 Project",
                                       sidebarPanel(
                                         selectInput(inputId = "stockname",
                                                     label = "Search stocks",
-                                                    choices = stocks,
+                                                    choices = stocks_df$company,
                                                     selected = NULL,
                                                     multiple = FALSE,
                                                     selectize = TRUE),
