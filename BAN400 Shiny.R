@@ -1,4 +1,5 @@
-rm()
+
+#------------------------------- Packages -----------------------
 install.packages("docstring")
 install.packages("ggthemes")
 install.packages("shinythemes")
@@ -6,7 +7,7 @@ install.packages("ggthemes")
 install.packages("emojifont")
 install.packages("ICON")
 
-#### Libraries
+#------------------------------- Libraries ------------------------
 library(tidyquant)
 require(tidyverse)
 require(shiny)
@@ -54,7 +55,7 @@ pricedata <- pblapply(stocks, function(x) {
   return(outdata_all)
 })
  
-#--------------------------------- DATA TRANFORMATION ------------------------------------------
+#------------------------------- DATA TRANFORMATION ------------------------------------------
 
 dates <- as.data.frame(pricedata[[1]]$dates) # Create date df
 
@@ -71,7 +72,7 @@ pricedata %>%
 
 colnames(SP500)[colSums(is.na(SP500)) > 0]
 
-#-------------------------------------- MA, RSI and SIGNAL-------------------------------------
+#------------------------------- MA, RSI and SIGNAL-------------------------------------
 # Calculate RSI
 rsi.sp <- map_df(SP500[,2:ncol(SP500)],
                                function(x) RSI(x)) %>% 
@@ -113,7 +114,7 @@ latest$signal <-  ifelse(latest$MA > latest$Price & latest$RSI < 30, # ifelse fo
 latest <- latest[!latest$signal %in% c("hold"),]
  
  
- #-------------------------------PRICEDATA FUNCTION -----------------------------------------------
+#------------------------------- PRICEDATA FUNCTION -----------------------------------------------
 
 price <- function(name, n_rsi, n_ma){
   #price <- function(name, n_rsi, n_ma){
@@ -160,7 +161,7 @@ price <- function(name, n_rsi, n_ma){
 
 
 
-# ------------Building Shiny App -------------------------------------------------------------
+# ------------------------------ Building Shiny App -------------------------------------------------------------
 
 ui <- navbarPage("BAN400 Project",
                  tabPanel("COMPANY SEARCH",
