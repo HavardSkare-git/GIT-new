@@ -25,7 +25,7 @@ install.packages("rmarkdown")
 library(rmarkdown)
 
 
-
+sequence <- seq(1:10)
 
 # Cleaning the data -----
 
