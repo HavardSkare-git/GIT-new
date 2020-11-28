@@ -67,32 +67,33 @@ dates <- as.data.frame(pricedata[[1]]$dates) # Create date df
 
 pricedata %>% 
   map(.,function(x) select(x,contains(c("Close")))) %>% # Keep only closing price
-  flatten(.) %>%                             # Flatten list
-  sapply(.,                                # Extract the list values
-         '[', seq(max(sapply(., length)
-         )
-         )
-  ) %>% 
-  as.data.frame(.) %>%          # Transform to df
-  mutate(dates = dates$`pricedata[[1]]$dates`, .before = 1) -> SP500 # Add add rsi, ma to this frame
+    flatten(.) %>%                             # Flatten list
+      sapply(.,                                # Extract the list values
+        '[', seq(max(sapply(., length)
+          )
+            )
+              ) %>% 
+                as.data.frame(.) %>%          # Transform to df
+                  mutate(dates = dates$`pricedata[[1]]$dates`, .before = 1) -> SP500 # Add add rsi, ma to this frame
 
 
 #--------------------------------- DATA TRANSFORMATION FUNCTION ---------------------------------------
-extracter <- function(data){
+extracter <- function(name){
   
-  data_chr <-  as.character(data) 
   pricedata %>% 
-    map(.,function(x) select(x,contains(c(data_chr)))) %>% # Keep only closing price
+    map(.,function(x) select(x,contains(c(get.ticker(name))))) %>% # Keep only closing price
       flatten(.) %>%                             # Flatten list
         sapply(.,                                # Extract the list values
            '[', seq(max(sapply(., length)
                )
                  )
                    ) %>% 
-                    as.data.frame(.) %>%          # Transform to df
+                    as.data.frame(.) %>%      # Transform to df
                       mutate(dates = dates$`pricedata[[1]]$dates`, .before = 1) -> SP500_data # Add add rsi, ma to this frame
   return(SP500_data)
 }
+
+extracter("Apple Inc.")
 
 colnames(SP500)[colSums(is.na(SP500)) > 0]
 
@@ -109,7 +110,7 @@ all_price <- function(sector, n_rsi, n_ma){
                                       as.data.frame(.) 
 # Calculate MA                  
   ma.sp <- map_df(SP500[,2:ncol(SP500)],
-                                  function(x) rollmean(x, k = n_ma, fill = list(NA,NULL,NA),
+                                  function(x) SMA(x, n = n_ma, fill = list(NA,NULL,NA),
                                     align = "right")) %>% 
                                       mutate(date=SP500$dates, .before = 1) %>% 
                                         .[nrow(.),2:ncol(.)] %>%         
@@ -156,18 +157,6 @@ all_price <- function(sector, n_rsi, n_ma){
   return(latest)
 }
  
-#---------------------------------------- EXTRA INFO TRANSFORMATION ----------------------------
-
-
-
-
-
-
-
-
-
-
-
 #------------------------------------- GET TICKER -----------------------
 
 get.ticker <- function(name){
@@ -224,11 +213,13 @@ price <- function(name, n_rsi, n_ma){
   return(outdata)
   
 }                             
-
+price("Apple Inc.",14,50)
 
 # ------------------------------ Building Shiny App -------------------------------------------------------------
 
 ui <- navbarPage("BAN400 Project",
+                 
+                 #------------------------------- FIRST PANEL------------------------------
                  tabPanel("COMPANY SEARCH",
                           fluidPage(theme = shinytheme("superhero"),
                                     titlePanel("COMPANY SEARCH"),
@@ -273,6 +264,8 @@ ui <- navbarPage("BAN400 Project",
                                     
                           icon = icon("search")
                           ),
+                 
+                 #--------------------------- SECOND PANEL------------------------------
                  tabPanel("TRADING OPPORTUNITIES",
                           fluidPage(theme = shinytheme("superhero"),
                                     titlePanel("TRADING OPPORTUNITIES"),
@@ -300,16 +293,16 @@ ui <- navbarPage("BAN400 Project",
                                         )
                           )),
                           icon = icon("info-circle")),
+                 
+                 
+                  #------------------- THIRD PANEL ------------------------
                  tabPanel("ABOUT"))
 
 server <-  function(input, output){
   
   
-  #output$signaltext <- renderUI({
-   # str1 <- print(output$signal)
-    #HTML(str1)
-  #}) 
-  
+ 
+  #------------------------------ FIRST PANEL ----------------------------
   data <- reactive({
     suppressWarnings(price(input$stockname,input$RSI, input$MA))
   })
@@ -353,7 +346,7 @@ server <-  function(input, output){
     paste("We recommend that you ",data[nrow(data),5]) # må bruke "data" da denne er koblet opp mot "outdata"
   })
   
-  
+  #------------------------- SECOND PANEL--------------------------------
   all_data <- reactive({
     suppressWarnings(all_price(input$sector, input$RSI_all, input$MA_all))
   })
@@ -362,6 +355,7 @@ server <-  function(input, output){
     data = all_data()
     data[,1:6]
   })
+  
   
 }
 
