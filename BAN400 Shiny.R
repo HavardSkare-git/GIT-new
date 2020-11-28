@@ -24,12 +24,14 @@ library(shinythemes)
 library(ICON)
 library(docstring)
 library(purrr)
-
+library(pbapply)
 
 
 #------------------------------- TICKERS ---------------------------
 
 stocks_df <- tq_index("SP500")
+
+#TQ <- tq_get(stocks_df$symbol, get = "stock.prices", from = Sys.Date() %m+% months(-12), to = Sys.Date())
 
 # Remove stocks with missing values and unobtainable stocks
 stocks_df <- stocks_df[!stocks_df$symbol %in% c("BRK.B","BF.B","CARR","OTIS","VIAC","LUMN","VNT","AVGO"),] 
@@ -52,26 +54,45 @@ pricedata <- pblapply(stocks, function(x) {
                         to = today, 
                         warnings = FALSE,
                         auto.assign = F)
-  outdata_all <- data.frame(dates = index(outdata_all), coredata(outdata_all)) %>% 
-    select("dates", contains("Close")) 
+  outdata_all <- data.frame(dates = index(outdata_all), coredata(outdata_all)) 
 
   return(outdata_all)
 })
- 
+
+
+
 #------------------------------- DATA TRANFORMATION ------------------------------------------
 
 dates <- as.data.frame(pricedata[[1]]$dates) # Create date df
 
 pricedata %>% 
-  map(.,function(x) select(x,contains("Close"))) %>% # Keep only closing price
-    flatten(.) %>%                             # Flatten list
-      sapply(.,                                # Extract the list values
+  map(.,function(x) select(x,contains(c("Close")))) %>% # Keep only closing price
+  flatten(.) %>%                             # Flatten list
+  sapply(.,                                # Extract the list values
          '[', seq(max(sapply(., length)
-             )
+         )
+         )
+  ) %>% 
+  as.data.frame(.) %>%          # Transform to df
+  mutate(dates = dates$`pricedata[[1]]$dates`, .before = 1) -> SP500 # Add add rsi, ma to this frame
+
+
+#--------------------------------- DATA TRANSFORMATION FUNCTION ---------------------------------------
+extracter <- function(data){
+  
+  data_chr <-  as.character(data) 
+  pricedata %>% 
+    map(.,function(x) select(x,contains(c(data_chr)))) %>% # Keep only closing price
+      flatten(.) %>%                             # Flatten list
+        sapply(.,                                # Extract the list values
+           '[', seq(max(sapply(., length)
                )
-                 ) %>% 
-                  as.data.frame(.) %>%          # Transform to df
-                    mutate(dates = dates$`pricedata[[1]]$dates`, .before = 1) -> SP500 # Add date column
+                 )
+                   ) %>% 
+                    as.data.frame(.) %>%          # Transform to df
+                      mutate(dates = dates$`pricedata[[1]]$dates`, .before = 1) -> SP500_data # Add add rsi, ma to this frame
+  return(SP500_data)
+}
 
 colnames(SP500)[colSums(is.na(SP500)) > 0]
 
@@ -135,6 +156,18 @@ all_price <- function(sector, n_rsi, n_ma){
   return(latest)
 }
  
+#---------------------------------------- EXTRA INFO TRANSFORMATION ----------------------------
+
+
+
+
+
+
+
+
+
+
+
 #------------------------------------- GET TICKER -----------------------
 
 get.ticker <- function(name){
