@@ -26,7 +26,7 @@ library(docstring)
 library(purrr)
 library(pbapply)
 
-
+rm(rsi_trans)
 #------------------------------- TICKERS ---------------------------
 
 stocks_df <- tq_index("SP500")
@@ -61,7 +61,7 @@ pricedata <- pblapply(stocks, function(x) {
 
 
 
-#------------------------------- DATA TRANFORMATION ------------------------------------------
+#------------------------------- DATA TRANFORMATION FOR ALL STOCKS ------------------------------------------
 
 dates <- as.data.frame(pricedata[[1]]$dates) # Create date df
 
@@ -77,7 +77,7 @@ pricedata %>%
                   mutate(dates = dates$`pricedata[[1]]$dates`, .before = 1) -> SP500 # Add add rsi, ma to this frame
 
 
-#--------------------------------- DATA TRANSFORMATION FUNCTION ---------------------------------------
+#--------------------------------- DATA TRANSFORMATION FUNCTION FOR SINGLE STOCK ---------------------------------------
 extracter <- function(name){
   
   pricedata %>% 
@@ -93,45 +93,65 @@ extracter <- function(name){
   return(SP500_data)
 }
 
-extracter("Apple Inc.")
+
 
 colnames(SP500)[colSums(is.na(SP500)) > 0]
 
-#------------------------------- MA, RSI and SIGNAL-------------------------------------
-# Calculate RSI
+#------------------------------- RSI FUNCTION -------------------------------------
+# PRICE-funksjonen henter RSI herfra 
 
-all_price <- function(sector, n_rsi, n_ma){
-
-  rsi.sp <- map_df(SP500[,2:ncol(SP500)],
+rsi_func <- function(n_rsi){
+    rsi.sp <- map_df(SP500[,2:ncol(SP500)],
                                function(x) RSI(x, n = n_rsi)) %>% 
-                                 mutate(date=SP500$dates, .before = 1) %>% 
-                                  .[nrow(.),2:ncol(.)] %>%     
-                                    t(.) %>%
-                                      as.data.frame(.) 
-# Calculate MA                  
-  ma.sp <- map_df(SP500[,2:ncol(SP500)],
+      `colnames<-` (paste0(colnames(.),".rsi"))
+     
+}
+#----------------------------- RSI TRANS -----------------------------------
+ # ALL_PRICE henter RSI herfra via rsi_func
+
+rsi_trans <- function(n_rsi){
+  rsi_all <- rsi_func(n_rsi) %>% 
+              .[nrow(.),] %>%     
+                t(.) %>%
+                  as.data.frame(.) %>% 
+                    `colnames<-` (paste0(colnames(.),".rsi"))
+}
+
+#------------------------------- MA FUNCTION --------------------------------    
+# price funksjonen henter MA herfra 
+
+ma_func <- function(n_ma){
+    ma.sp <- map_df(SP500[,2:ncol(SP500)],
                                   function(x) SMA(x, n = n_ma, fill = list(NA,NULL,NA),
                                     align = "right")) %>% 
-                                      mutate(date=SP500$dates, .before = 1) %>% 
-                                        .[nrow(.),2:ncol(.)] %>%         
-                                          t(.) %>%
-                                            as.data.frame(.)
+                                      `colnames<-` (paste0(colnames(.),".ma"))
+    return(ma.sp)
+}
+#------------------------------ MA TRANS -----------------------------------------------
+# all_price funksjonen henter MA herfra via ma_func
 
-# Price, MA and RSI
-  latest <- SP500[nrow(SP500),2:ncol(SP500)] %>%            # Comparing latest price, ma and rsi
-                  t(.) %>%                                  # Transpose
-                    as.data.frame(.) %>% 
-                      mutate(stocks_df$sector, .before = 1) %>% 
-                        mutate(stocks_df$company, .before = 1) %>%
-                          mutate(ma=ma.sp) %>%                  # Add MA values
-                            mutate(rsi=rsi.sp) %>%               # Add RSI values
-                            `colnames<-`(c("Stocks","Sector", "Price", "MA","RSI"))
-
-
-# Set column names
-                           
-# Sales signal
-  latest$signal <-  ifelse(latest$MA > latest$Price & latest$RSI < 30, # ifelse for signal
+ma_trans <- function(n_ma){
+  ma_all <- ma_func(n_ma) %>% 
+    .[nrow(.),] %>%     
+    t(.) %>%
+    as.data.frame(.) %>% 
+    `colnames<-` (paste0(colnames(.),".ma"))
+  return(ma_all)
+}
+#------------------------------------- TRADING OPPOTUNITY FUNCTION -------------------------------
+  
+all_price <- function(sector, n_rsi, n_ma){
+    
+    latest <- SP500[nrow(SP500),2:ncol(SP500)] %>%   # Comparing latest price, ma and rsi
+      t(.) %>%                                       # Transpose
+        as.data.frame(.) %>% 
+          mutate(stocks_df$sector, .before = 1) %>% 
+            mutate(stocks_df$company, .before = 1) %>% 
+              mutate(ma=ma_trans(n_ma)) %>%                  # Add MA values
+                mutate(rsi=rsi_trans(n_rsi)) %>%               # Add RSI values
+                  `colnames<-`(c("Stocks","Sector", "Price", "MA","RSI"))
+    
+     latest$signal <-  ifelse(latest$MA > latest$Price & latest$RSI < 30, # ifelse for signal
                             
                             c("buy"),
                             
@@ -142,21 +162,22 @@ all_price <- function(sector, n_rsi, n_ma){
                                    c("hold"))) 
 
 # Keep only sell/buy recommendations
-  latest <- latest[!latest$signal %in% c("hold"),] 
+    latest <- latest[!latest$signal %in% c("hold"),] 
   
-  if (length(sector) > 0){
-    selected_sector <- as.character(sector) 
-    latest <- subset(latest, latest$Sector == selected_sector)
-  } else{
-    sectors <- as.character(latest$Sector)
-    latest <- subset(latest, latest$Sector == sectors )
-  }
+
   
+    if (length(sector) > 0){
+      selected_sector <- as.character(sector) 
+      latest <- subset(latest, latest$Sector == selected_sector)
+    } else{
+      sectors <- as.character(latest$Sector)
+      latest <- subset(latest, latest$Sector == sectors )
+    }
+    
   
   
   return(latest)
 }
- 
 #------------------------------------- GET TICKER -----------------------
 
 get.ticker <- function(name){
@@ -168,7 +189,7 @@ get.ticker <- function(name){
   ticker <- as.character(stocks_df[stocks_df$company %in% name,] %>% 
                          .[,1])
 }
-  
+
 #------------------------------- PRICEDATA FUNCTION -----------------------------------------------
   
 
@@ -183,38 +204,22 @@ price <- function(name, n_rsi, n_ma){
   #' @param n_rsi number of periods for RSI
   #' @param n_ma number of periods for MA
   
-  outdata <- suppressWarnings(getSymbols(get.ticker(name), 
-                                         from = Sys.Date() %m+% months(-24), 
-                                         to = Sys.Date(), 
-                                         warnings = NULL,
-                                         auto.assign = FALSE))
+  outdata <- select(SP500,"dates", contains(get.ticker(name))) %>% 
+    mutate(select(rsi_func(n_rsi), contains(get.ticker(name)))) %>% 
+    mutate(select(ma_func(n_ma), contains(get.ticker(name))))
   
-  outdata <- data.frame(dates = index(outdata), coredata(outdata)) %>% 
-    select("dates", contains("Close")) %>% 
-    na.omit()
-  
-  outdata$rsi <- RSI(outdata[,2], 
-                     n = n_rsi)
-  
-  outdata$ma <- rollmean(outdata[,2], 
-                         k = n_ma, 
-                         fill = list(NA, NULL, NA),
-                         align = "right")
-  
-  outdata$signal <-  ifelse(outdata$ma > outdata[,2] & outdata$rsi < 30, # ifelse for salgssignal
+  outdata$signal <-  ifelse(outdata[,4] > outdata[,2] & outdata[,3] < 30, # ifelse for salgssignal
                             
                             c("buy"),
                             
-                            ifelse(outdata$ma < outdata[,2] & outdata$rsi > 70, # må bruke [,2] for å hente pris for alle aksjer
+                            ifelse(outdata[,4] < outdata[,2] & outdata[,3] > 70, # må bruke [,2] for å hente pris for alle aksjer
                                    
                                    c("sell"),
                                    
-                                   c("hold")))
+                                      c("hold")))
   return(outdata)
   
 }                             
-price("Apple Inc.",14,50)
-
 # ------------------------------ Building Shiny App -------------------------------------------------------------
 
 ui <- navbarPage("BAN400 Project",

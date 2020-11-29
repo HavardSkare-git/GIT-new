@@ -42,18 +42,15 @@ OBX <-
   html_nodes(xpath = '//*[@id="mw-content-text"]/div[1]/table[1]') %>% 
   html_table() %>%
   as.data.frame(.) %>% 
-  map_df(~gsub("OSE: ", "",.)) 
+  map_df(~gsub("OSE: ", "",.)) %>% 
+  select("Tickersymbol")
 
 
 OBX <- paste0(OBX$Tickersymbol,".OL")
 
 
 
-  select("Tickersymbol") 
-
-
-  subset(., .$Tickersymbol == "AKER.OL") %>% 
-  unlist(.) %>% 
+ OBX <-  unlist(OBX) %>% 
   as.vector(.)
 
 # OBX stocks are listed as TICKERNAME.OL on Yahoo Finance. 
