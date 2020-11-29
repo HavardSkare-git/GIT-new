@@ -114,7 +114,7 @@ rsi_trans <- function(n_rsi){
               .[nrow(.),] %>%     
                 t(.) %>%
                   as.data.frame(.) %>% 
-                    `colnames<-` (paste0(colnames(.),".rsi"))
+                    `colnames<-` (c("rsi"))
 }
 
 #------------------------------- MA FUNCTION --------------------------------    
@@ -135,7 +135,7 @@ ma_trans <- function(n_ma){
     .[nrow(.),] %>%     
     t(.) %>%
     as.data.frame(.) %>% 
-    `colnames<-` (paste0(colnames(.),".ma"))
+    `colnames<-` (c("ma"))
   return(ma_all)
 }
 #------------------------------------- TRADING OPPOTUNITY FUNCTION -------------------------------
