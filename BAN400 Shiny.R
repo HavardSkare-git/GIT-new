@@ -56,7 +56,7 @@ pricedata <- pblapply(stocks_df$symbol, function(x) {
 dates <- as.data.frame(pricedata[[1]]$dates) # Create date df
 
 pricedata %>% 
-  map(.,function(x) select(x,contains(c("Close")))) %>% # Keep only closing price
+  map(.,function(x) dplyr::select(x,contains(c("Close")))) %>% # Keep only closing price
     flatten(.) %>%                             # Flatten list
       sapply(.,                                # Extract the list values
         '[', seq(max(sapply(., length)
@@ -73,6 +73,18 @@ SP500 <- SP500[ ,colSums(is.na(SP500)) == 0] # Remove NA columns from SP500
 
 stocks_df <-  stocks_df[!stocks_df$symbol %in% NAs,] #Remove NA columns from stock_df
 
+#------------------------------- GET TICKER -----------------------
+
+get.ticker <- function(name){
+  #' Ticker converter
+  #' 
+  #' @description Changing company name to ticker
+  #' 
+  #' @param name the company name
+  ticker <- as.character(stocks_df[stocks_df$company %in% name,] %>% 
+                           .[,1])
+}
+
 #------------------------------- DATA TRANSFORMATION FUNCTION FOR SINGLE STOCK ---------------------------------------
 
 extracter <- function(name){
@@ -82,7 +94,7 @@ extracter <- function(name){
   #' 
   #' @param name Company name
   pricedata %>% 
-    map(.,function(x) select(x,contains(c(get.ticker(name))))) %>% # Keep only closing price
+    map(.,function(x) dplyr::select(x,contains(c(get.ticker(name))))) %>% # Keep only closing price
       flatten(.) %>%                             # Flatten list
         sapply(.,                                # Extract the list values
            '[', seq(max(sapply(., length)
@@ -93,10 +105,6 @@ extracter <- function(name){
                       mutate(dates = dates$`pricedata[[1]]$dates`, .before = 1) -> SP500_data # Add add rsi, ma to this frame
   return(SP500_data)
 }
-
-
-
-
 
 #------------------------------- RSI FUNCTION -------------------------------------
 # PRICE-funksjonen henter RSI herfra 
@@ -202,17 +210,6 @@ all_price <- function(sector, n_rsi, n_ma){
   
   return(latest)
 }
-#------------------------------- GET TICKER -----------------------
-
-get.ticker <- function(name){
-  #' Ticker converter
-  #' 
-  #' @description Changing company name to ticker
-  #' 
-  #' @param name the company name
-  ticker <- as.character(stocks_df[stocks_df$company %in% name,] %>% 
-                         .[,1])
-}
 
 #------------------------------- PRICEDATA FUNCTION -----------------------------------------------
   
@@ -236,7 +233,7 @@ price <- function(name, n_rsi, n_ma){
                             
                             c("buy"),
                             
-                            ifelse(outdata[,4] < outdata[,2] & outdata[,3] > 70, # må bruke [,2] for å hente pris for alle aksjer
+                            ifelse(outdata[,4] < outdata[,2] & outdata[,3] > 70, # m? bruke [,2] for ? hente pris for alle aksjer
                                    
                                    c("sell"),
                                    
@@ -260,39 +257,34 @@ ui <- navbarPage("BAN400 Project",
                                                     selected = NULL,
                                                     multiple = FALSE,
                                                     selectize = TRUE),
-                                        sliderInput(inputId = "MA", 
-                                                    label = "Moving Average (MA)",
+                                        numericInput(inputId = "SMAS", 
+                                                    label = "Short Simple Moving Average (SMA)",
+                                                    value = 20,
+                                                    min = 10, 
+                                                    max = 100),
+                                        numericInput(inputId = "SMAL", 
+                                                    label = "Long Simple Moving Average (SMA)",
                                                     value = 50,
-                                                    min = 1, 
+                                                    min = 10, 
                                                     max = 200),
                                         sliderInput(inputId = "RSI", 
                                                     label = "Relative Strength Index (RSI)",
                                                     value = 14,
-                                                    min = 1, 
+                                                    min = 5, 
                                                     max = 30),
-                                        dateRangeInput(inputId = "dates",
-                                                       label = "Choose time period",
-                                                       start = Sys.Date() %m+% months(-12),
-                                                       end = Sys.Date(),
-                                                       min = Sys.Date() %m+% months(-15),
-                                                       max = Sys.Date()),
-                                        
-                                        
                                       ),
                                       
                                       mainPanel(
                                         textOutput("signal"), # plassering av salgssignal i shiny
                                         br(),
-                                        plotOutput("priceplot"),
-                                        br(),
-                                        plotOutput("rsiplot")
-                                        )
-                                    
+                                        plotlyOutput("priceplot")
                                       )
-                                    ),
-                                    
-                          icon = icon("search")
+                                      
+                                    )
                           ),
+                          
+                          icon = icon("search")
+                 ),
                  
                  #--------------------------- SECOND PANEL------------------------------
                  tabPanel("TRADING OPPORTUNITIES",
@@ -321,11 +313,20 @@ ui <- navbarPage("BAN400 Project",
                                           dataTableOutput("tradingOportunity")
                                         )
                           )),
-                          icon = icon("info-circle")),
+                          icon = icon("chart-line")),
                  
                  
                   #------------------- THIRD PANEL ------------------------
-                 tabPanel("ABOUT"))
+                 tabPanel("ABOUT",
+                          h1("About this project"),
+                          h6("Episode IV", align = "center"),
+                          h6("A NEW HOPE", align = "center"),
+                          h5("It is a period of civil war.", align = "center"),
+                          h4("Rebel spaceships, striking", align = "center"),
+                          h3("from a hidden base, have won", align = "center"),
+                          h2("their first victory against the", align = "center"),
+                          h1("evil Galactic Empire.", align = "center"),
+                          icon = icon("info-circle")))
 
 server <-  function(input, output){
   
@@ -333,48 +334,77 @@ server <-  function(input, output){
  
   #------------------------------ FIRST PANEL ----------------------------
   data <- reactive({
-    suppressWarnings(price(input$stockname,input$RSI, input$MA))
+    extracter(input$stockname)
   })
   
-  output$priceplot <- renderPlot({
+  output$priceplot <- renderPlotly({
     data = data()
-    suppressWarnings(ggplot(data)+
-      geom_line(aes(
-        x = data[,1],
-        y = data[,2]))+
-      geom_line(aes(
-        x = data[,1],
-        y = data[,4]),
-        color = "green")+
-      xlab("DATE")+
-      ylab("CLOSING PRICE")+
-      scale_x_date(limits = c(input$dates[1], input$dates[2]))+
-      ggtitle(paste0("PRICE CHART: ",input$stockname))+
-      theme_economist())
+    suppressWarnings(subplot(
+      plot_ly(x = data[,1],
+              type = "candlestick",
+              open = data[,2],
+              close = data[,5],
+              high = data[,3], 
+              low = data[,4], 
+              name = input$stockname) %>%
+        add_lines(x = data[,1], 
+                  y = SMA(data[,5], n = input$SMAS), 
+                  line = list(dash="solid", 
+                              width = 1, 
+                              color= "orange"), 
+                  name = paste0("SMA",input$SMAS)) %>% 
+        add_lines(x = data[,1], 
+                  y = SMA(data[,5], n = input$SMAL), 
+                  line = list(dash="solid", 
+                              width = 1, 
+                              color= "blue"), 
+                  name = paste0("SMA",input$SMAL)) %>% 
+        layout(title = paste(input$stockname),
+               height = 1200,
+               xaxis = list(
+                 rangeselector = list(
+                   buttons = list(
+                     list(
+                       count = 14,
+                       label = "14D",
+                       step = "day",
+                       stepmode = "backward"),
+                     list(
+                       count = 1,
+                       label = "1M",
+                       step = "month",
+                       stepmode = "backward"),
+                     list(
+                       count = 3,
+                       label = "3M",
+                       step = "month",
+                       stepmode = "backward"),
+                     list(
+                       count = 6,
+                       label = "6M",
+                       step = "month",
+                       stepmode = "backward"),
+                     list(step = "all"))),
+                 rangeslider = list(visible = F))),
+      plot_ly(data,
+              x = data[,1],
+              y = RSI(data[,5], input$RSI),
+              type = "scatter",
+              mode = "line", 
+              name = paste("RSI", input$RSI)) %>% 
+        add_lines(y = 30, showlegend = F, line = list(color= "grey", widthh=0.2, dash="dot")) %>% 
+        add_lines(y = 70, showlegend = F, line = list(color= "grey", widthh=0.2, dash="dot")) %>% 
+        layout(yaxis = list(range=c(5,95)),
+               height = 700), 
+      plot_ly(data,
+              x = data[,1],
+              y = data[,6],
+              type = "bar",
+              name = "Volume",
+              color = "black") %>% 
+        layout(height = 700), 
+      nrows = 3, shareX = TRUE, heights = c(0.7, 0.2, 0.1)))
   })
-  
-  output$rsiplot <- renderPlot({
-    data = data()
-    suppressWarnings(ggplot(data)+
-      geom_line(aes(
-        x = data[,1],
-        y = data[,3]))+
-      geom_hline(yintercept = c(30,70), 
-                 col = "red",
-                 linetype = "dotted")+
-      xlab("DATE")+
-      ylab("RSI")+
-      ggtitle(paste0("RSI CHART: ", input$stockname))+
-      ylim(c(5,95))+
-      scale_x_date(limits = c(input$dates[1], input$dates[2]))+
-      theme_economist())
-  })
-  
-  output$signal <- renderText({     # Legger til rendertext med salgssignal
-    data = data()
-    paste("We recommend that you ",data[nrow(data),5]) # må bruke "data" da denne er koblet opp mot "outdata"
-  })
-  
   #------------------------- SECOND PANEL--------------------------------
   all_data <- reactive({
     suppressWarnings(all_price(input$sector, input$RSI_all, input$MA_all))
