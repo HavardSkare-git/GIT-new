@@ -26,7 +26,6 @@ library(docstring)
 library(purrr)
 library(pbapply)
 
-rm(rsi_trans)
 #------------------------------- TICKERS ---------------------------
 
 stocks_df <- tq_index("SP500")
@@ -77,7 +76,7 @@ pricedata %>%
                   mutate(dates = dates$`pricedata[[1]]$dates`, .before = 1) -> SP500 # Add add rsi, ma to this frame
 
 
-#--------------------------------- DATA TRANSFORMATION FUNCTION FOR SINGLE STOCK ---------------------------------------
+#------------------------------- DATA TRANSFORMATION FUNCTION FOR SINGLE STOCK ---------------------------------------
 extracter <- function(name){
   
   pricedata %>% 
@@ -104,9 +103,11 @@ rsi_func <- function(n_rsi){
     rsi.sp <- map_df(SP500[,2:ncol(SP500)],
                                function(x) RSI(x, n = n_rsi)) %>% 
       `colnames<-` (paste0(colnames(.),".rsi"))
+    return(rsi.sp)
      
 }
-#----------------------------- RSI TRANS -----------------------------------
+rsi_func(14)
+#------------------------------- RSI TRANS -----------------------------------
  # ALL_PRICE henter RSI herfra via rsi_func
 
 rsi_trans <- function(n_rsi){
@@ -127,7 +128,7 @@ ma_func <- function(n_ma){
                                       `colnames<-` (paste0(colnames(.),".ma"))
     return(ma.sp)
 }
-#------------------------------ MA TRANS -----------------------------------------------
+#------------------------------- MA TRANS -----------------------------------------------
 # all_price funksjonen henter MA herfra via ma_func
 
 ma_trans <- function(n_ma){
@@ -138,7 +139,7 @@ ma_trans <- function(n_ma){
     `colnames<-` (c("ma"))
   return(ma_all)
 }
-#------------------------------------- TRADING OPPOTUNITY FUNCTION -------------------------------
+#------------------------------- TRADING OPPOTUNITY FUNCTION -------------------------------
   
 all_price <- function(sector, n_rsi, n_ma){
     
@@ -178,7 +179,7 @@ all_price <- function(sector, n_rsi, n_ma){
   
   return(latest)
 }
-#------------------------------------- GET TICKER -----------------------
+#------------------------------- GET TICKER -----------------------
 
 get.ticker <- function(name){
   #' Ticker converter
@@ -204,9 +205,9 @@ price <- function(name, n_rsi, n_ma){
   #' @param n_rsi number of periods for RSI
   #' @param n_ma number of periods for MA
   
-  outdata <- select(SP500,"dates", contains(get.ticker(name))) %>% 
-    mutate(select(rsi_func(n_rsi), contains(get.ticker(name)))) %>% 
-    mutate(select(ma_func(n_ma), contains(get.ticker(name))))
+  outdata <- select(SP500,"dates", paste0(get.ticker(name),".Close")) %>% 
+    mutate(select(rsi_func(n_rsi), paste0(get.ticker(name),".Close.rsi"))) %>% 
+    mutate(select(ma_func(n_ma), paste0(get.ticker(name),".Close.ma")))
   
   outdata$signal <-  ifelse(outdata[,4] > outdata[,2] & outdata[,3] < 30, # ifelse for salgssignal
                             
@@ -219,7 +220,8 @@ price <- function(name, n_rsi, n_ma){
                                       c("hold")))
   return(outdata)
   
-}                             
+}          
+price("Procter & Gamble Company", 14, 100)
 # ------------------------------ Building Shiny App -------------------------------------------------------------
 
 ui <- navbarPage("BAN400 Project",
