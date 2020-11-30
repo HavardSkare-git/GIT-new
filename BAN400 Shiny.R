@@ -30,29 +30,20 @@ library(pbapply)
 
 stocks_df <- tq_index("SP500")
 
-#TQ <- tq_get(stocks_df$symbol, get = "stock.prices", from = Sys.Date() %m+% months(-12), to = Sys.Date())
+stocks_df$symbol <- gsub("[[:punct:]]","-",stocks_df$symbol)
 
-# Remove stocks with missing values and unobtainable stocks
-stocks_df <- stocks_df[!stocks_df$symbol %in% c("BRK.B","BF.B","CARR","OTIS","VIAC","LUMN","VNT","AVGO"),] 
-
-# Create tickers for trading opportunities
-stocks <- as.data.frame(stocks_df) %>% 
-  select("symbol") %>% 
-  unlist(.) %>% 
-  as.character(.)
-
-#------------------------------- TRADING OPORTUNITIES ------------------------------------
+#------------------------------- LOADING STOCK DATA ------------------------------------
 
 today <- Sys.Date()
 
 from.date <- today %m+% months(-12)
 
-pricedata <- pblapply(stocks, function(x) {
+pricedata <- pblapply(stocks_df$symbol, function(x) {
   outdata_all <- getSymbols(x, 
                         from = from.date, 
                         to = today, 
                         warnings = FALSE,
-                        auto.assign = F)
+                        auto.assign = FALSE)
   outdata_all <- data.frame(dates = index(outdata_all), coredata(outdata_all)) 
 
   return(outdata_all)
@@ -72,13 +63,24 @@ pricedata %>%
           )
             )
               ) %>% 
-                as.data.frame(.) %>%          # Transform to df
-                  mutate(dates = dates$`pricedata[[1]]$dates`, .before = 1) -> SP500 # Add add rsi, ma to this frame
+                as.data.frame(.) %>%  
+                    mutate(dates = dates$`pricedata[[1]]$dates`, .before = 1) -> SP500 # Add add rsi, ma to this frame
 
+NAs <- colnames(SP500)[colSums(is.na(SP500)) > 0] %>% # Create vector for NA stocks
+        gsub(".Close","",.) 
+
+SP500 <- SP500[ ,colSums(is.na(SP500)) == 0] # Remove NA columns from SP500
+
+stocks_df <-  stocks_df[!stocks_df$symbol %in% NAs,] #Remove NA columns from stock_df
 
 #------------------------------- DATA TRANSFORMATION FUNCTION FOR SINGLE STOCK ---------------------------------------
+
 extracter <- function(name){
-  
+  #' Data extracter
+  #' 
+  #' @description Gets info from list based on ticker
+  #' 
+  #' @param name Company name
   pricedata %>% 
     map(.,function(x) select(x,contains(c(get.ticker(name))))) %>% # Keep only closing price
       flatten(.) %>%                             # Flatten list
@@ -94,23 +96,31 @@ extracter <- function(name){
 
 
 
-colnames(SP500)[colSums(is.na(SP500)) > 0]
+
 
 #------------------------------- RSI FUNCTION -------------------------------------
 # PRICE-funksjonen henter RSI herfra 
 
 rsi_func <- function(n_rsi){
+    #' RSI function
+    #' 
+    #' @description Calculates the relative strength index for all stocks
+    #' 
+    #' @param n_rsi Number of days smoothed
     rsi.sp <- map_df(SP500[,2:ncol(SP500)],
                                function(x) RSI(x, n = n_rsi)) %>% 
       `colnames<-` (paste0(colnames(.),".rsi"))
-    return(rsi.sp)
-     
+
 }
-rsi_func(14)
 #------------------------------- RSI TRANS -----------------------------------
  # ALL_PRICE henter RSI herfra via rsi_func
 
 rsi_trans <- function(n_rsi){
+  #' Transpose RSI
+  #' 
+  #' @description Finds and transposes the latest RSI values for each stock
+  #' 
+  #' @param n_rsi Number of days smoothed
   rsi_all <- rsi_func(n_rsi) %>% 
               .[nrow(.),] %>%     
                 t(.) %>%
@@ -122,27 +132,40 @@ rsi_trans <- function(n_rsi){
 # price funksjonen henter MA herfra 
 
 ma_func <- function(n_ma){
+    #' MA function
+    #' 
+    #' @description Calculates the moving average for all stocks
+    #' 
+    #' @param  n_ma Number of days smoothed
     ma.sp <- map_df(SP500[,2:ncol(SP500)],
                                   function(x) SMA(x, n = n_ma, fill = list(NA,NULL,NA),
                                     align = "right")) %>% 
                                       `colnames<-` (paste0(colnames(.),".ma"))
-    return(ma.sp)
 }
 #------------------------------- MA TRANS -----------------------------------------------
 # all_price funksjonen henter MA herfra via ma_func
 
 ma_trans <- function(n_ma){
+  #' Transpose MA
+  #' 
+  #' @description Finds and transposes the latest MA values for each stock
   ma_all <- ma_func(n_ma) %>% 
     .[nrow(.),] %>%     
     t(.) %>%
     as.data.frame(.) %>% 
     `colnames<-` (c("ma"))
-  return(ma_all)
 }
 #------------------------------- TRADING OPPOTUNITY FUNCTION -------------------------------
   
 all_price <- function(sector, n_rsi, n_ma){
-    
+    #' Data table constructer
+    #' 
+    #' @description Creates a dataframe with information for the
+    #' trading opportunity page
+    #' 
+    #' @param sector Market sector
+    #' @param n_rsi Number of days smoothed for RSI
+    #' @param n_ma  Number of days smoothed for MA
     latest <- SP500[nrow(SP500),2:ncol(SP500)] %>%   # Comparing latest price, ma and rsi
       t(.) %>%                                       # Transpose
         as.data.frame(.) %>% 
@@ -221,7 +244,6 @@ price <- function(name, n_rsi, n_ma){
   return(outdata)
   
 }          
-price("Procter & Gamble Company", 14, 100)
 # ------------------------------ Building Shiny App -------------------------------------------------------------
 
 ui <- navbarPage("BAN400 Project",
