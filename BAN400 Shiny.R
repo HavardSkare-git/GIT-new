@@ -49,7 +49,7 @@ pricedata <- pblapply(stocks_df$symbol, function(x) {
   return(outdata_all)
 })
 
-if ()
+
 
 #------------------------------- DATA TRANFORMATION FOR ALL STOCKS ------------------------------------------
 
