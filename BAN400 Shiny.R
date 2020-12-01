@@ -49,7 +49,7 @@ pricedata <- pblapply(stocks_df$symbol, function(x) {
   return(outdata_all)
 })
 
-
+if ()
 
 #------------------------------- DATA TRANFORMATION FOR ALL STOCKS ------------------------------------------
 
@@ -73,8 +73,9 @@ SP500 <- SP500[ ,colSums(is.na(SP500)) == 0] # Remove NA columns from SP500
 
 stocks_df <-  stocks_df[!stocks_df$symbol %in% NAs,] #Remove NA columns from stock_df
 
-#------------------------------- DATA TRANSFORMATION FUNCTION FOR SINGLE STOCK ---------------------------------------
 
+#------------------------------- DATA TRANSFORMATION FUNCTION FOR SINGLE STOCK ---------------------------------------
+########################### OFFLINE ###############################
 extracter <- function(name){
   #' Data extracter
   #' 
@@ -82,7 +83,12 @@ extracter <- function(name){
   #' 
   #' @param name Company name
   pricedata %>% 
-    map(.,function(x) select(x,contains(c(get.ticker(name))))) %>% # Keep only closing price
+    map(.,function(x) select(x, matches(paste0("^",get.ticker(name),".Open")),
+                             matches(paste0("^",get.ticker(name),".High")),
+                                     matches(paste0("^",get.ticker(name),".Low")),
+                                             matches(paste0("^",get.ticker(name),".Close")),
+                                                     matches(paste0("^",get.ticker(name),".Volume")),
+                                                             matches(paste0("^",get.ticker(name),".Adjusted")))) %>% 
       flatten(.) %>%                             # Flatten list
         sapply(.,                                # Extract the list values
            '[', seq(max(sapply(., length)
@@ -94,7 +100,7 @@ extracter <- function(name){
   return(SP500_data)
 }
 
-
+extracter("Citigroup Inc.")
 
 
 
