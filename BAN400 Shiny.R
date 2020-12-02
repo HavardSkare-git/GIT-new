@@ -56,7 +56,7 @@ pricedata <- pblapply(stocks_df$symbol, function(x) {
 dates <- as.data.frame(pricedata[[1]]$dates) # Create date df
 
 pricedata %>% 
-  map(.,function(x) select(x,contains(c("Close")))) %>% # Keep only closing price
+  map(.,function(x) dplyr::select(x,contains(c("Close")))) %>% # Keep only closing price
     flatten(.) %>%                             # Flatten list
       sapply(.,                                # Extract the list values
         '[', seq(max(sapply(., length)
@@ -93,7 +93,7 @@ extracter <- function(name){
   #' 
   #' @param name Company name
   pricedata %>% 
-    map(.,function(x) select(x, matches(paste0("^",get.ticker(name),".Open")),
+    map(.,function(x) dplyr::select(x, matches(paste0("^",get.ticker(name),".Open")),
                              matches(paste0("^",get.ticker(name),".High")),
                                      matches(paste0("^",get.ticker(name),".Low")),
                                              matches(paste0("^",get.ticker(name),".Close")),
@@ -169,7 +169,7 @@ ma_trans <- function(n_ma){
 }
 #------------------------------- TRADING OPPOTUNITY FUNCTION -------------------------------
   
-all_price <- function(sector, n_rsi, n_ma, n_mas){
+all_price <- function(sector, n_rsi, n_ma, n_mas, rsi_lwr, rsi_hgr){
     #' Data table constructer
     #' 
     #' @description Creates a dataframe with information for the
@@ -189,11 +189,11 @@ all_price <- function(sector, n_rsi, n_ma, n_mas){
                   mutate(rsi=rsi_trans(n_rsi)) %>%           # Add RSI values
                    `colnames<-`(c("Stocks","Sector", "Price", "MA_L", "MA_S", "RSI"))
     
-     latest$signal <-  ifelse(latest$MA_S > latest$MA_L & latest$RSI < 30, # ifelse for signal
+     latest$signal <-  ifelse(latest$MA_S > latest$MA_L & latest$RSI < rsi_lwr, # ifelse for signal
                             
                             c("buy"),
                             
-                              ifelse(latest$MA_S < latest$MA_L & latest$RSI > 70, 
+                              ifelse(latest$MA_S < latest$MA_L & latest$RSI > rsi_hgr, 
                                    
                                  c("sell"),
                                    
@@ -304,14 +304,14 @@ ui <- navbarPage("BAN400 Project",
                                                     selected = NULL,
                                                     multiple = TRUE,
                                                     selectize = TRUE),
-                                        sliderInput(inputId = "MA_L", 
+                                        numericInput(inputId = "MA_L", 
                                                     label = "Long Simple Moving Average (SMA)",
-                                                    value = 200,
+                                                    value = 50,
                                                     min = 1, 
                                                     max = 200),
-                                        sliderInput(inputId = "MA_S", 
+                                        numericInput(inputId = "MA_S", 
                                                     label = "Short Smple Moving Average (SMA)",
-                                                    value = 50,
+                                                    value = 20,
                                                     min = 1, 
                                                     max = 200),
                                         sliderInput(inputId = "RSI_all", 
@@ -319,6 +319,16 @@ ui <- navbarPage("BAN400 Project",
                                                     value = 14,
                                                     min = 1, 
                                                     max = 30),
+                                        numericInput(inputId = "RSI_lwr", 
+                                                     label = "RSI lower cut-off",
+                                                     value = 35,
+                                                     min = 1, 
+                                                     max = 50),
+                                        numericInput(inputId = "RSI_hgr", 
+                                                     label = "RSI higher cut-off",
+                                                     value = 65,
+                                                     min = 51, 
+                                                     max = 100),
                                         ),
                                         mainPanel(
                                           dataTableOutput("tradingOportunity")
@@ -418,7 +428,7 @@ server <-  function(input, output){
   })
   #------------------------- SECOND PANEL--------------------------------
   all_data <- reactive({
-    suppressWarnings(all_price(input$sector, input$RSI_all, input$MA_L, input$MA_S))
+    suppressWarnings(all_price(input$sector, input$RSI_all, input$MA_L, input$MA_S, input$RSI_lwr, input$RSI_hgr))
   })
   # Adding all the signals
   output$tradingOportunity <- renderDataTable({
