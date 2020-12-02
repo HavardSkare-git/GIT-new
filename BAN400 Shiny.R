@@ -169,7 +169,7 @@ ma_trans <- function(n_ma){
 }
 #------------------------------- TRADING OPPOTUNITY FUNCTION -------------------------------
   
-all_price <- function(sector, n_rsi, n_ma){
+all_price <- function(sector, n_rsi, n_ma, n_mas){
     #' Data table constructer
     #' 
     #' @description Creates a dataframe with information for the
@@ -177,21 +177,23 @@ all_price <- function(sector, n_rsi, n_ma){
     #' 
     #' @param sector Market sector
     #' @param n_rsi Number of days smoothed for RSI
-    #' @param n_ma  Number of days smoothed for MA
-    latest <- SP500[nrow(SP500),2:ncol(SP500)] %>%   # Comparing latest price, ma and rsi
+    #' @param n_ma  Number of days smoothed for MA long
+    #' @param n_mas Number of days for smoothed MA short
+    latest <- SP500[nrow(SP500),2:ncol(SP500)] %>%   # Comparing latest price, ma short, ma long and rsi
       t(.) %>%                                       # Transpose
         as.data.frame(.) %>% 
           mutate(stocks_df$sector, .before = 1) %>% 
             mutate(stocks_df$company, .before = 1) %>% 
-              mutate(ma=ma_trans(n_ma)) %>%                  # Add MA values
-                mutate(rsi=rsi_trans(n_rsi)) %>%               # Add RSI values
-                  `colnames<-`(c("Stocks","Sector", "Price", "MA","RSI"))
+              mutate(ma=ma_trans(n_ma)) %>%                  # Add MA Long values
+                mutate(mas=ma_trans(n_mas)) %>%              # Add MA Short values
+                  mutate(rsi=rsi_trans(n_rsi)) %>%           # Add RSI values
+                   `colnames<-`(c("Stocks","Sector", "Price", "MA_L", "MA_S", "RSI"))
     
-     latest$signal <-  ifelse(latest$MA > latest$Price & latest$RSI < 30, # ifelse for signal
+     latest$signal <-  ifelse(latest$MA_S > latest$MA_L & latest$RSI < 30, # ifelse for signal
                             
                             c("buy"),
                             
-                              ifelse(latest$MA < latest$Price & latest$RSI > 70, 
+                              ifelse(latest$MA_S < latest$MA_L & latest$RSI > 70, 
                                    
                                  c("sell"),
                                    
@@ -302,8 +304,13 @@ ui <- navbarPage("BAN400 Project",
                                                     selected = NULL,
                                                     multiple = TRUE,
                                                     selectize = TRUE),
-                                        sliderInput(inputId = "MA_all", 
-                                                    label = "Moving Average (MA)",
+                                        sliderInput(inputId = "MA_L", 
+                                                    label = "Long Simple Moving Average (SMA)",
+                                                    value = 200,
+                                                    min = 1, 
+                                                    max = 200),
+                                        sliderInput(inputId = "MA_S", 
+                                                    label = "Short Smple Moving Average (SMA)",
                                                     value = 50,
                                                     min = 1, 
                                                     max = 200),
@@ -411,12 +418,12 @@ server <-  function(input, output){
   })
   #------------------------- SECOND PANEL--------------------------------
   all_data <- reactive({
-    suppressWarnings(all_price(input$sector, input$RSI_all, input$MA_all))
+    suppressWarnings(all_price(input$sector, input$RSI_all, input$MA_L, input$MA_S))
   })
   # Adding all the signals
   output$tradingOportunity <- renderDataTable({
     data = all_data()
-    data[,1:6]
+    data[,1:7]
   })
   
   
