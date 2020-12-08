@@ -15,7 +15,7 @@ in order to display a graphical representation of the relevant stock's price,
 short and long simple moving average curves, and the relative strength index
 in the chosen time period (ranging from a 14 day interval to a full year).
 2. `Trading opportunities` presents the up-to-date trading signals for the
-relevant day. The user can change lower and higher RSI-cutoffs to make it suit
+relevant day. The user can change lower and higher RSI-cutoffs and MA lengths to make it suit
 his/her personal trading style better, as well as filter by sector.
 3. `About` is lastly a page that provides general information on how to use
 the app.
