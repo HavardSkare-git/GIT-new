@@ -25,6 +25,7 @@ library(ICON)
 library(docstring)
 library(purrr)
 library(pbapply)
+library(plotly)
 
 #------------------------------- TICKERS ---------------------------
 
@@ -49,7 +50,14 @@ pricedata <- pblapply(stocks_df$symbol, function(x) {
   return(outdata_all)
 })
 
+#------------------------------- LOADING S&P 500 BENCHMARK DATA ------------------------------------
 
+benchmark <- "^GSPC" %>%
+  tq_get(get  = "stock.prices",
+         from = from.date,
+         to   = today) %>% 
+  mutate(change = 100*close/first(close)) %>% 
+  dplyr::select(date, change)
 
 #------------------------------- DATA TRANFORMATION FOR ALL STOCKS ------------------------------------------
 
@@ -64,7 +72,7 @@ pricedata %>%
             )
               ) %>% 
                 as.data.frame(.) %>%  
-                    mutate(dates = dates$`pricedata[[1]]$dates`, .before = 1) -> SP500 # Add add rsi, ma to this frame
+                    mutate(dates = dates$`pricedata[[1]]$dates`, .before = 1) -> SP500 
 
 NAs <- colnames(SP500)[colSums(is.na(SP500)) > 0] %>% # Create vector for NA stocks
         gsub(".Close","",.) 
@@ -106,7 +114,8 @@ extracter <- function(name){
                  )
                    ) %>% 
                     as.data.frame(.) %>%      # Transform to df
-                      mutate(dates = dates$`pricedata[[1]]$dates`, .before = 1) -> SP500_data # Add add rsi, ma to this frame
+                      mutate(dates = dates$`pricedata[[1]]$dates`, .before = 1) -> SP500_data 
+  SP500_data$change <- 100*SP500_data[,5]/first(SP500_data[,5])
   return(SP500_data)
 }
 
@@ -278,11 +287,22 @@ ui <- navbarPage("BAN400 Project",
                                                     value = 14,
                                                     min = 5, 
                                                     max = 30),
+                                        numericInput(inputId = "cRSI_lwr", 
+                                                     label = "RSI lower cut-off",
+                                                     value = 35,
+                                                     min = 1, 
+                                                     max = 50),
+                                        numericInput(inputId = "cRSI_hgr", 
+                                                     label = "RSI higher cut-off",
+                                                     value = 65,
+                                                     min = 51, 
+                                                     max = 100),
                                       ),
                                       
                                       mainPanel(
-                                        textOutput("signal"), # plassering av salgssignal i shiny
-                                        br(),
+                                        h3("STOCK ANALYSIS"),
+                                        htmlOutput("compare"),
+                                        h3("INTERACTIVE CHART"),
                                         plotlyOutput("priceplot")
                                       )
                                       
@@ -426,6 +446,40 @@ server <-  function(input, output){
         layout(height = 700), 
       nrows = 3, shareX = TRUE, heights = c(0.7, 0.2, 0.1)))
   })
+  
+  output$compare <- renderText({
+    data = data()
+    compar <- paste0("With the inputs you have selected our recommendation is to ",
+                    ifelse(
+                      last(SMA(data[,5], n = input$SMAS)) > last(SMA(data[,5], n = input$SMAL)) &
+                                                                   last(RSI(data[,5], n = input$RSI)) < input$cRSI_lwr,
+                      "<B>buy </B>", ifelse(
+                        last(SMA(data[,5], n = input$SMAS)) < last(SMA(data[,5], n = input$SMAL)) |
+                          last(RSI(data[,5], n = input$RSI)) > input$cRSI_hgr,
+                        "<B>sell </B>", "<B>hold </B>"
+                      )
+                    ),
+                    input$stockname,
+                    " stocks.",
+                    "</p>",
+                    " In the last 12 months, ", 
+                    input$stockname, 
+                    " has ", 
+                    ifelse(last(data[,8]) > last(benchmark$change), "outperformed ", "been outperformed by "), 
+                    "the S&P 500 index by ",
+                    round(last(data[,8]) - last(benchmark$change), digits = 2),
+                    "%. In the period the S&P 500 index ",
+                    ifelse(last(benchmark$change) > first(benchmark$change), " rose by ", " fell with "),
+                    round(last(benchmark$change)- 100, digits = 2),
+                    "%, meanwhile ",
+                    input$stockname,
+                    ifelse(last(data[,8] > first(data[,8])), " rose by ", " fell with "),
+                    round(last(data[,8])-100, digits = 2),
+                    "%."
+                    )
+  })
+  
+
   #------------------------- SECOND PANEL--------------------------------
   all_data <- reactive({
     suppressWarnings(all_price(input$sector, input$RSI_all, input$MA_L, input$MA_S, input$RSI_lwr, input$RSI_hgr))
@@ -440,3 +494,5 @@ server <-  function(input, output){
 }
 
 shinyApp(ui = ui, server = server)
+
+  
