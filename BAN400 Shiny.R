@@ -18,10 +18,16 @@ library(docstring)
 library(purrr)
 library(pbapply)
 library(plotly)
+library(curl)
 
 #------------------------------- TICKERS ---------------------------
 
-stocks_df <- tq_index("SP500")
+if(has_internet()){
+  stocks_df <- tq_index("SP500")
+} else {
+  message("Error: Please check your internet connection and try again")
+  stop()
+  }
 
 stocks_df$symbol <- gsub("[[:punct:]]","-",stocks_df$symbol)
 
