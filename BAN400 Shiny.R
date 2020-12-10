@@ -1,18 +1,4 @@
 
-#------------------------------- Packages -----------------------
-install.packages("docstring")
-install.packages("ggthemes")
-install.packages("shinythemes")
-install.packages("ggthemes")
-install.packages("emojifont")
-install.packages("ICON")
-install.packages("tidyquant")
-install.packages("tidyverse")
-install.packages("shiny")
-install.packages("rvest")
-install.packages("XML")
-
-
 #------------------------------- Libraries ------------------------
 library(tidyquant)
 require(tidyverse)
