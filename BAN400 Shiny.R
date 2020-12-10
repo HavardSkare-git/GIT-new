@@ -6,6 +6,12 @@ install.packages("shinythemes")
 install.packages("ggthemes")
 install.packages("emojifont")
 install.packages("ICON")
+install.packages("tidyquant")
+install.packages("tidyverse")
+install.packages("shiny")
+install.packages("rvest")
+install.packages("XML")
+
 
 #------------------------------- Libraries ------------------------
 library(tidyquant)
@@ -358,16 +364,21 @@ ui <- navbarPage("BAN400 Project",
                  
                  
                   #------------------- THIRD PANEL ------------------------
-                 tabPanel("ABOUT",
-                          h1("About this project"),
-                          h6("Episode IV", align = "center"),
-                          h6("A NEW HOPE", align = "center"),
-                          h5("It is a period of civil war.", align = "center"),
-                          h4("Rebel spaceships, striking", align = "center"),
-                          h3("from a hidden base, have won", align = "center"),
-                          h2("their first victory against the", align = "center"),
-                          h1("evil Galactic Empire.", align = "center"),
-                          icon = icon("info-circle")))
+                 tabPanel("ABOUT",h3("Company Search"),
+                 p("Company search allows the user to search between different stocks in order to
+                  display a graphical representation of the relevant stock's price, short and long simple
+                   moving average curves, and the relative strength index in the chosen time period (ranging
+                   from a 14 day interval to a full year. In additon the user is given a recomondation to either,
+                   sell, hold or buy the stock depending on the output of the financial instruments MA and RSI,
+                   which in turn can be adjusted. Lastly the stock is compared to the S&P 500 Index over the
+                   last 12 months.", "To use this program correctly it is advised to have knowledge over the
+                   use of", a("MA", href="https://www.investopedia.com/articles/active-trading/052014/how-use-moving-average-buy-stocks.asp", target="_blank"),
+                 "and",a("RSI", href="https://www.investopedia.com/terms/r/rsi.asp", target="_blank"), "as financial tools", style = "font-size:17px"),
+                 
+                 h3("Trading oppurtunities"),
+                 p("Here the user is given the opportunity to search through all the stocks in S&P 500 to look
+                  For trading signals based on the financial instruments. The program allows the user to filter the stocks
+                  by sector.", style = "font-size:17px")))
 
 server <-  function(input, output){
   
